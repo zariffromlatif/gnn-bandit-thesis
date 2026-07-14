@@ -114,11 +114,11 @@ class DQNPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.FloatTensor(states)
+        A = torch.LongTensor(actions)
+        R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True)
+                            shuffle=True, pin_memory=True)
 
         self.q_net.train()
         for epoch in range(n_epochs):
@@ -136,7 +136,7 @@ class DQNPolicy:
 
     @torch.no_grad()
     def action_probabilities(self, states: np.ndarray) -> np.ndarray:
-        S = torch.FloatTensor(states).to(self.device)
+        S = torch.FloatTensor(states)
         q = self.q_net(S)
         return F.softmax(q / self.temperature, dim=1).cpu().numpy()
 
@@ -242,11 +242,11 @@ class MFBanditPolicy:
             ).cpu().numpy()
         full_states = np.hstack([u_emb, states])
 
-        S = torch.FloatTensor(full_states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.FloatTensor(full_states)
+        A = torch.LongTensor(actions)
+        R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True)
+                            shuffle=True, pin_memory=True)
 
         # BC phase
         self.bc_model.train()
@@ -513,11 +513,11 @@ class NeuralUCBPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.FloatTensor(states)
+        A = torch.LongTensor(actions)
+        R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True)
+                            shuffle=True, pin_memory=True)
 
         self.net.train()
         for epoch in range(n_epochs):
@@ -560,7 +560,7 @@ class NeuralUCBPolicy:
 
     @torch.no_grad()
     def action_probabilities(self, states: np.ndarray) -> np.ndarray:
-        S = torch.FloatTensor(states).to(self.device)
+        S = torch.FloatTensor(states)
         pred = self.net(S)  # (N, A) mean predictions
         # Use prediction as score (UCB uncertainty is expensive at scale)
         scores = pred / self.temperature
@@ -605,11 +605,11 @@ class CQLPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.FloatTensor(states)
+        A = torch.LongTensor(actions)
+        R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True)
+                            shuffle=True, pin_memory=True)
 
         self.q_net.train()
         for epoch in range(n_epochs):
@@ -640,7 +640,7 @@ class CQLPolicy:
 
     @torch.no_grad()
     def action_probabilities(self, states: np.ndarray) -> np.ndarray:
-        S = torch.FloatTensor(states).to(self.device)
+        S = torch.FloatTensor(states)
         q = self.q_net(S)
         return F.softmax(q / self.temperature, dim=1).cpu().numpy()
 
@@ -704,11 +704,11 @@ class IQLPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.FloatTensor(states)
+        A = torch.LongTensor(actions)
+        R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True)
+                            shuffle=True, pin_memory=True)
 
         for epoch in range(n_epochs):
             total_q_loss = 0.0
@@ -756,7 +756,7 @@ class IQLPolicy:
         pi(a|s) = softmax(A(s,a) / temperature)
         where A(s,a) = Q(s,a) - V(s) is the advantage.
         """
-        S = torch.FloatTensor(states).to(self.device)
+        S = torch.FloatTensor(states)
         q = self.q_net(S)                                    # (N, A)
         v = self.v_net(S)                                    # (N, 1)
         advantage = q - v                                    # (N, A)

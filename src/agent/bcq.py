@@ -195,13 +195,13 @@ class BCQAgent:
         history : dict with keys "bc_loss", "q_loss" — lists of per-epoch losses.
         """
         # --- Prepare tensors ---
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.FloatTensor(states)
+        A = torch.LongTensor(actions)
+        R = torch.FloatTensor(rewards)
 
         dataset = TensorDataset(S, A, R)
         loader  = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                             drop_last=False)
+                             drop_last=False, pin_memory=True)
 
         history = {"bc_loss": [], "q_loss": []}
 
@@ -213,6 +213,8 @@ class BCQAgent:
         for epoch in range(n_epochs_bc):
             epoch_loss = 0.0
             for s_batch, a_batch, _ in loader:
+                s_batch = s_batch.to(self.device)
+                a_batch = a_batch.to(self.device)
                 logits = self.bc_model(s_batch)
                 loss = F.cross_entropy(logits, a_batch)
                 self.bc_optim.zero_grad()
@@ -233,6 +235,9 @@ class BCQAgent:
         for epoch in range(n_epochs_q):
             epoch_loss = 0.0
             for s_batch, a_batch, r_batch in loader:
+                s_batch = s_batch.to(self.device)
+                a_batch = a_batch.to(self.device)
+                r_batch = r_batch.to(self.device)
                 # q_all shape: (B, n_actions * num_quantiles)
                 q_all = self.q_net(s_batch)
                 B = q_all.size(0)
