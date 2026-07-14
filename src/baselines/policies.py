@@ -113,7 +113,7 @@ class DQNPolicy:
 
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
-              batch_size: int = 2048, verbose: bool = True):
+              batch_size: int = 16384, verbose: bool = True):
         S = torch.FloatTensor(states).to(self.device)
         A = torch.LongTensor(actions).to(self.device)
         R = torch.FloatTensor(rewards).to(self.device)
@@ -197,7 +197,7 @@ class MFBanditPolicy:
         self.q_optim  = torch.optim.Adam(self.q_net.parameters(), lr=lr)
 
     def train_mf(self, user_ids: np.ndarray, pos_items: np.ndarray,
-                 n_epochs: int = 30, batch_size: int = 4096, verbose: bool = True):
+                 n_epochs: int = 30, batch_size: int = 16384, verbose: bool = True):
         """Train MF embeddings with BPR loss (no graph)."""
         rng = np.random.RandomState(42)
         self.user_emb.train()
@@ -234,7 +234,7 @@ class MFBanditPolicy:
     def train_policy(self, states: np.ndarray, user_ids: np.ndarray,
                      actions: np.ndarray, rewards: np.ndarray,
                      n_epochs_bc: int = 30, n_epochs_q: int = 50,
-                     batch_size: int = 2048, verbose: bool = True):
+                     batch_size: int = 16384, verbose: bool = True):
         """Train BC + Q using MF embeddings concatenated with context."""
         with torch.no_grad():
             u_emb = self.user_emb(
@@ -512,7 +512,7 @@ class NeuralUCBPolicy:
 
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
-              batch_size: int = 2048, verbose: bool = True):
+              batch_size: int = 16384, verbose: bool = True):
         S = torch.FloatTensor(states).to(self.device)
         A = torch.LongTensor(actions).to(self.device)
         R = torch.FloatTensor(rewards).to(self.device)
@@ -604,7 +604,7 @@ class CQLPolicy:
 
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
-              batch_size: int = 2048, verbose: bool = True):
+              batch_size: int = 16384, verbose: bool = True):
         S = torch.FloatTensor(states).to(self.device)
         A = torch.LongTensor(actions).to(self.device)
         R = torch.FloatTensor(rewards).to(self.device)
@@ -703,7 +703,7 @@ class IQLPolicy:
 
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
-              batch_size: int = 2048, verbose: bool = True):
+              batch_size: int = 16384, verbose: bool = True):
         S = torch.FloatTensor(states).to(self.device)
         A = torch.LongTensor(actions).to(self.device)
         R = torch.FloatTensor(rewards).to(self.device)

@@ -110,7 +110,7 @@ class CATEEstimator:
         user_ids: np.ndarray,
         uplift_table: np.ndarray,
         n_epochs: int = 50,
-        batch_size: int = 2048,
+        batch_size: int = 16384,
         verbose: bool = True,
     ):
         """
@@ -162,7 +162,7 @@ class CATEEstimator:
         actions: np.ndarray,
         rewards: np.ndarray,
         n_epochs: int = 50,
-        batch_size: int = 2048,
+        batch_size: int = 16384,
         verbose: bool = True,
     ):
         """

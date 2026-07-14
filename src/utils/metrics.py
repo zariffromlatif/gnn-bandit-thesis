@@ -52,7 +52,7 @@ class RewardModel:
 
     def fit(self, states: np.ndarray, actions: np.ndarray,
             rewards: np.ndarray, n_epochs: int = 30,
-            batch_size: int = 2048, verbose: bool = True):
+            batch_size: int = 16384, verbose: bool = True):
         """Train the reward model on logged (s, a, r) tuples."""
         S = torch.FloatTensor(states).to(self.device)
         A = torch.LongTensor(actions).to(self.device)

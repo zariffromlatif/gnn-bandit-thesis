@@ -54,7 +54,7 @@ DEFAULT_CONFIG = {
     "gcn_n_layers":   3,
     "gcn_lr":         1e-3,
     "gcn_epochs":     100,
-    "gcn_batch_size": 4096,
+    "gcn_batch_size": 16384,
     "gcn_reg":        1e-4,
 
     # BCQ
@@ -65,7 +65,7 @@ DEFAULT_CONFIG = {
     "bcq_lr":              1e-3,
     "bcq_epochs_bc":       30,
     "bcq_epochs_q":        100,     # more training for better Q-value discrimination
-    "bcq_batch_size":      2048,
+    "bcq_batch_size":      16384,
     "bcq_temperature":     0.1,     # concentrated policy (matches Greedy-GNN scale)
     "bcq_hybrid_weight":   1.0,     # weight for GNN dot-product in hybrid scoring
     "bcq_num_quantiles":   32,      # number of quantiles for Distributional RL
