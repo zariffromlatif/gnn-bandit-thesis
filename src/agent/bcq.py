@@ -195,9 +195,9 @@ class BCQAgent:
         history : dict with keys "bc_loss", "q_loss" — lists of per-epoch losses.
         """
         # --- Prepare tensors ---
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
+        A = torch.as_tensor(actions, dtype=torch.long, device=self.device)
+        R = torch.as_tensor(rewards, dtype=torch.float32, device=self.device)
 
         history = {"bc_loss": [], "q_loss": []}
         N = len(S)
@@ -410,7 +410,7 @@ class BCQAgent:
     @torch.no_grad()
     def q_values(self, states: np.ndarray) -> np.ndarray:
         """Return raw CVaR(s, a) for all actions.  Shape (N, n_actions)."""
-        S = torch.FloatTensor(states).to(self.device)
+        S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
         q_all = self.q_net(S).view(-1, self.n_actions, self.num_quantiles)
         return self._compute_cvar(q_all).cpu().numpy()
 

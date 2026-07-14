@@ -54,9 +54,9 @@ class RewardModel:
             rewards: np.ndarray, n_epochs: int = 30,
             batch_size: int = 16384, verbose: bool = True):
         """Train the reward model on logged (s, a, r) tuples."""
-        S = torch.FloatTensor(states).to(self.device)
-        A = torch.LongTensor(actions).to(self.device)
-        R = torch.FloatTensor(rewards).to(self.device)
+        S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
+        A = torch.as_tensor(actions, dtype=torch.long, device=self.device)
+        R = torch.as_tensor(rewards, dtype=torch.float32, device=self.device)
 
         self.model.train()
         N = len(S)
@@ -87,7 +87,7 @@ class RewardModel:
         -------
         predictions : (N, n_actions) array of predicted rewards.
         """
-        S = torch.FloatTensor(states).to(self.device)
+        S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
         return self.model(S).cpu().numpy()
 
 

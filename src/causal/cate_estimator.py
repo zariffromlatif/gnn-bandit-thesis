@@ -132,8 +132,8 @@ class CATEEstimator:
         # Build per-sample uplift targets
         targets = uplift_table[user_ids]  # (N, n_actions)
 
-        S = torch.FloatTensor(states).to(self.device)
-        T = torch.FloatTensor(targets).to(self.device)
+        S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
+        T = torch.as_tensor(targets, dtype=torch.float32, device=self.device)
 
         if verbose:
             print(f"  [CATE] Training on {len(states):,} samples, "
@@ -201,8 +201,8 @@ class CATEEstimator:
             # For the taken action: observed reward - global mean
             targets[i, a] = r - global_mean
 
-        S = torch.FloatTensor(states).to(self.device)
-        T = torch.FloatTensor(targets).to(self.device)
+        S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
+        T = torch.as_tensor(targets, dtype=torch.float32, device=self.device)
 
         if verbose:
             print(f"  [CATE] Training from outcomes on {len(states):,} samples")
