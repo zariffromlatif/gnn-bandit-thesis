@@ -139,7 +139,7 @@ class DQNPolicy:
 
     @torch.no_grad()
     def action_probabilities(self, states: np.ndarray) -> np.ndarray:
-        S = torch.FloatTensor(states)
+        S = torch.FloatTensor(states).to(self.device)
         q = self.q_net(S)
         return F.softmax(q / self.temperature, dim=1).cpu().numpy()
 
@@ -573,7 +573,7 @@ class NeuralUCBPolicy:
 
     @torch.no_grad()
     def action_probabilities(self, states: np.ndarray) -> np.ndarray:
-        S = torch.FloatTensor(states)
+        S = torch.FloatTensor(states).to(self.device)
         pred = self.net(S)  # (N, A) mean predictions
         # Use prediction as score (UCB uncertainty is expensive at scale)
         scores = pred / self.temperature
@@ -656,7 +656,7 @@ class CQLPolicy:
 
     @torch.no_grad()
     def action_probabilities(self, states: np.ndarray) -> np.ndarray:
-        S = torch.FloatTensor(states)
+        S = torch.FloatTensor(states).to(self.device)
         q = self.q_net(S)
         return F.softmax(q / self.temperature, dim=1).cpu().numpy()
 
@@ -775,7 +775,7 @@ class IQLPolicy:
         pi(a|s) = softmax(A(s,a) / temperature)
         where A(s,a) = Q(s,a) - V(s) is the advantage.
         """
-        S = torch.FloatTensor(states)
+        S = torch.FloatTensor(states).to(self.device)
         q = self.q_net(S)                                    # (N, A)
         v = self.v_net(S)                                    # (N, 1)
         advantage = q - v                                    # (N, A)
