@@ -220,7 +220,7 @@ class BCQAgent:
                 loss.backward()
                 self.bc_optim.step()
                 epoch_loss += loss.item() * len(s_batch)
-            epoch_loss /= len(dataset)
+            epoch_loss /= N
             history["bc_loss"].append(epoch_loss)
             if verbose and (epoch + 1) % 10 == 0:
                 print(f"    epoch {epoch+1:3d}  BC loss: {epoch_loss:.4f}")
@@ -273,7 +273,7 @@ class BCQAgent:
                 loss.backward()
                 self.q_optim.step()
                 epoch_loss += loss.item() * len(s_batch)
-            epoch_loss /= len(dataset)
+            epoch_loss /= N
             history["q_loss"].append(epoch_loss)
             if verbose and (epoch + 1) % 10 == 0:
                 print(f"    epoch {epoch+1:3d}  Q  loss: {epoch_loss:.4f}")
