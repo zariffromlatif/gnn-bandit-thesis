@@ -195,15 +195,12 @@ class BCQAgent:
         history : dict with keys "bc_loss", "q_loss" — lists of per-epoch losses.
         """
         # --- Prepare tensors ---
-        S = torch.FloatTensor(states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-
-        dataset = TensorDataset(S, A, R)
-        loader  = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                             drop_last=False, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
 
         history = {"bc_loss": [], "q_loss": []}
+        N = len(S)
 
         # ---- Phase 1: Behavioural Cloning ----
         if verbose:
@@ -212,9 +209,11 @@ class BCQAgent:
         self.bc_model.train()
         for epoch in range(n_epochs_bc):
             epoch_loss = 0.0
-            for s_batch, a_batch, _ in loader:
-                s_batch = s_batch.to(self.device)
-                a_batch = a_batch.to(self.device)
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s_batch, a_batch = S[idx], A[idx]
                 logits = self.bc_model(s_batch)
                 loss = F.cross_entropy(logits, a_batch)
                 self.bc_optim.zero_grad()
@@ -234,10 +233,11 @@ class BCQAgent:
         self.q_net.train()
         for epoch in range(n_epochs_q):
             epoch_loss = 0.0
-            for s_batch, a_batch, r_batch in loader:
-                s_batch = s_batch.to(self.device)
-                a_batch = a_batch.to(self.device)
-                r_batch = r_batch.to(self.device)
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s_batch, a_batch, r_batch = S[idx], A[idx], R[idx]
                 # q_all shape: (B, n_actions * num_quantiles)
                 q_all = self.q_net(s_batch)
                 B = q_all.size(0)

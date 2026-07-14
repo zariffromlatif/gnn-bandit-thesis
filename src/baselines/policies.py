@@ -114,11 +114,10 @@ class DQNPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-        loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
+        N = len(S)
 
         self.q_net.train()
         for epoch in range(n_epochs):
@@ -242,11 +241,10 @@ class MFBanditPolicy:
             ).cpu().numpy()
         full_states = np.hstack([u_emb, states])
 
-        S = torch.FloatTensor(full_states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-        loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(full_states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
+        N = len(S)
 
         # BC phase
         self.bc_model.train()
@@ -513,11 +511,10 @@ class NeuralUCBPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-        loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
+        N = len(S)
 
         self.net.train()
         for epoch in range(n_epochs):
@@ -605,11 +602,10 @@ class CQLPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-        loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
+        N = len(S)
 
         self.q_net.train()
         for epoch in range(n_epochs):
@@ -704,11 +700,10 @@ class IQLPolicy:
     def train(self, states: np.ndarray, actions: np.ndarray,
               rewards: np.ndarray, n_epochs: int = 50,
               batch_size: int = 16384, verbose: bool = True):
-        S = torch.FloatTensor(states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-        loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
+        N = len(S)
 
         for epoch in range(n_epochs):
             total_q_loss = 0.0

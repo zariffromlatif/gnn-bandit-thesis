@@ -54,19 +54,19 @@ class RewardModel:
             rewards: np.ndarray, n_epochs: int = 30,
             batch_size: int = 16384, verbose: bool = True):
         """Train the reward model on logged (s, a, r) tuples."""
-        S = torch.FloatTensor(states)
-        A = torch.LongTensor(actions)
-        R = torch.FloatTensor(rewards)
-        loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).to(self.device)
 
         self.model.train()
+        N = len(S)
         for epoch in range(n_epochs):
             total = 0.0
-            for s, a, r in loader:
-                s = s.to(self.device)
-                a = a.to(self.device)
-                r = r.to(self.device)
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
                 pred = self.model(s).gather(1, a.unsqueeze(1)).squeeze(1)
                 loss = F.binary_cross_entropy(pred, r.float())
                 self.optim.zero_grad()

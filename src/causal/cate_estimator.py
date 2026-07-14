@@ -132,21 +132,22 @@ class CATEEstimator:
         # Build per-sample uplift targets
         targets = uplift_table[user_ids]  # (N, n_actions)
 
-        S = torch.FloatTensor(states)
-        T = torch.FloatTensor(targets)
-        loader = DataLoader(TensorDataset(S, T), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        T = torch.FloatTensor(targets).to(self.device)
 
         if verbose:
             print(f"  [CATE] Training on {len(states):,} samples, "
                   f"{n_epochs} epochs")
 
         self.model.train()
+        N = len(S)
         for epoch in range(n_epochs):
             total_loss = 0.0
-            for s_batch, t_batch in loader:
-                s_batch = s_batch.to(self.device)
-                t_batch = t_batch.to(self.device)
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s_batch, t_batch = S[idx], T[idx]
                 pred = self.model(s_batch)
                 loss = F.mse_loss(pred, t_batch)
                 self.optim.zero_grad()
@@ -200,20 +201,21 @@ class CATEEstimator:
             # For the taken action: observed reward - global mean
             targets[i, a] = r - global_mean
 
-        S = torch.FloatTensor(states)
-        T = torch.FloatTensor(targets)
-        loader = DataLoader(TensorDataset(S, T), batch_size=batch_size,
-                            shuffle=True, pin_memory=False)
+        S = torch.FloatTensor(states).to(self.device)
+        T = torch.FloatTensor(targets).to(self.device)
 
         if verbose:
             print(f"  [CATE] Training from outcomes on {len(states):,} samples")
 
         self.model.train()
+        N = len(S)
         for epoch in range(n_epochs):
             total_loss = 0.0
-            for s_batch, t_batch in loader:
-                s_batch = s_batch.to(self.device)
-                t_batch = t_batch.to(self.device)
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s_batch, t_batch = S[idx], T[idx]
                 pred = self.model(s_batch)
                 loss = F.mse_loss(pred, t_batch)
                 self.optim.zero_grad()
