@@ -122,7 +122,11 @@ class DQNPolicy:
         self.q_net.train()
         for epoch in range(n_epochs):
             total_loss = 0.0
-            for s, a, r in loader:
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
                 q = self.q_net(s).gather(1, a.unsqueeze(1)).squeeze(1)
                 loss = F.mse_loss(q, r)
                 self.optim.zero_grad()
@@ -249,7 +253,11 @@ class MFBanditPolicy:
         # BC phase
         self.bc_model.train()
         for epoch in range(n_epochs_bc):
-            for s, a, _ in loader:
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a = S[idx], A[idx]
                 loss = F.cross_entropy(self.bc_model(s), a)
                 self.bc_optim.zero_grad()
                 loss.backward()
@@ -261,7 +269,11 @@ class MFBanditPolicy:
         self.bc_model.eval()
         self.q_net.train()
         for epoch in range(n_epochs_q):
-            for s, a, r in loader:
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
                 q = self.q_net(s).gather(1, a.unsqueeze(1)).squeeze(1)
                 loss = F.mse_loss(q, r)
                 self.q_optim.zero_grad()
@@ -519,7 +531,11 @@ class NeuralUCBPolicy:
         self.net.train()
         for epoch in range(n_epochs):
             total_loss = 0.0
-            for s, a, r in loader:
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
                 pred = self.net(s).gather(1, a.unsqueeze(1)).squeeze(1)
                 loss = F.mse_loss(pred, r)
                 self.optim.zero_grad()
@@ -610,7 +626,11 @@ class CQLPolicy:
         self.q_net.train()
         for epoch in range(n_epochs):
             total_loss = 0.0
-            for s, a, r in loader:
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
                 q_all = self.q_net(s)                          # (B, A)
                 q_taken = q_all.gather(1, a.unsqueeze(1)).squeeze(1)
 
@@ -712,7 +732,11 @@ class IQLPolicy:
             self.q_net.train()
             self.v_net.train()
 
-            for s, a, r in loader:
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
                 # --- Q update: standard regression Q(s,a) → r ---
                 q_all = self.q_net(s)
                 q_taken = q_all.gather(1, a.unsqueeze(1)).squeeze(1)
