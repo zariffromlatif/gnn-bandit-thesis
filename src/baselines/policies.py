@@ -118,7 +118,7 @@ class DQNPolicy:
         A = torch.LongTensor(actions)
         R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         self.q_net.train()
         for epoch in range(n_epochs):
@@ -246,7 +246,7 @@ class MFBanditPolicy:
         A = torch.LongTensor(actions)
         R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         # BC phase
         self.bc_model.train()
@@ -517,7 +517,7 @@ class NeuralUCBPolicy:
         A = torch.LongTensor(actions)
         R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         self.net.train()
         for epoch in range(n_epochs):
@@ -609,7 +609,7 @@ class CQLPolicy:
         A = torch.LongTensor(actions)
         R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         self.q_net.train()
         for epoch in range(n_epochs):
@@ -708,7 +708,7 @@ class IQLPolicy:
         A = torch.LongTensor(actions)
         R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         for epoch in range(n_epochs):
             total_q_loss = 0.0

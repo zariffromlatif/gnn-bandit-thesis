@@ -135,7 +135,7 @@ class CATEEstimator:
         S = torch.FloatTensor(states)
         T = torch.FloatTensor(targets)
         loader = DataLoader(TensorDataset(S, T), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         if verbose:
             print(f"  [CATE] Training on {len(states):,} samples, "
@@ -203,7 +203,7 @@ class CATEEstimator:
         S = torch.FloatTensor(states)
         T = torch.FloatTensor(targets)
         loader = DataLoader(TensorDataset(S, T), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         if verbose:
             print(f"  [CATE] Training from outcomes on {len(states):,} samples")

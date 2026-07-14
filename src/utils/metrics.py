@@ -58,7 +58,7 @@ class RewardModel:
         A = torch.LongTensor(actions)
         R = torch.FloatTensor(rewards)
         loader = DataLoader(TensorDataset(S, A, R), batch_size=batch_size,
-                            shuffle=True, pin_memory=True)
+                            shuffle=True, pin_memory=False)
 
         self.model.train()
         for epoch in range(n_epochs):

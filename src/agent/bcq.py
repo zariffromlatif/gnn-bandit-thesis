@@ -201,7 +201,7 @@ class BCQAgent:
 
         dataset = TensorDataset(S, A, R)
         loader  = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                             drop_last=False, pin_memory=True)
+                             drop_last=False, pin_memory=False)
 
         history = {"bc_loss": [], "q_loss": []}
 
