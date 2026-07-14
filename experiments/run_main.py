@@ -607,6 +607,12 @@ def run_experiment(dataset_name: str, seed: int, config: dict,
             for est_name, res in estimators.items()
         }
 
+    import gc
+    del gcn_model, reward_model, cate_model, agent, baselines, ope_results, sd_results
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     result_file = out_dir / f"results_seed{seed}.json"
     with open(result_file, "w") as f:
         json.dump({
