@@ -31,6 +31,11 @@ from run_main import (
 
 
 def run_cold_start(dataset_name: str, seed: int, config: dict, output_dir: str = "experiments/results"):
+    out_dir = Path(ROOT) / output_dir / dataset_name
+    result_file = out_dir / f"coldstart_seed{seed}.json"
+    if result_file.exists():
+        print(f"\n============================================================\nSkipping Seed {seed} for {dataset_name}: {result_file.name} already exists.\n============================================================\n")
+        return None, None
     """Run cold-start analysis."""
     start_time = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
