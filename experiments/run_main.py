@@ -608,7 +608,7 @@ def run_experiment(dataset_name: str, seed: int, config: dict,
         }
 
     import gc
-    del gcn_model, reward_model, cate_model, agent, baselines, ope_results
+    del gcn_model, reward_model, cate_model, agent, baselines
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
