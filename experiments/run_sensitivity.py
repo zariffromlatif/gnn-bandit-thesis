@@ -178,11 +178,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="GNN-Bandit sensitivity analysis")
     parser.add_argument("--dataset", type=str, default="obd-all")
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seeds", type=str, default="0", help="Comma-separated random seeds (e.g. '0,1,2,3,4').")
     parser.add_argument("--output", type=str, default="experiments/results")
     args = parser.parse_args()
 
-    run_sensitivity(args.dataset, args.seed, DEFAULT_CONFIG, args.output)
+    seeds = [int(s) for s in args.seeds.split(",")]
+    
+    for seed in seeds:
+        run_sensitivity(args.dataset, seed, DEFAULT_CONFIG, args.output)
 
 
 if __name__ == "__main__":
