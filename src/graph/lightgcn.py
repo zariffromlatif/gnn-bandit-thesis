@@ -182,7 +182,11 @@ class LightGCN(nn.Module):
     ) -> torch.Tensor:
         """Return embeddings for specific items (or all items)."""
         all_emb = self.forward()
-        item_emb = all_emb[self.n_users:]
+        if self.n_nodes == self.n_users:
+            item_emb = all_emb
+        else:
+            item_emb = all_emb[self.n_users:]
+            
         if item_ids is not None:
             return item_emb[item_ids]
         return item_emb

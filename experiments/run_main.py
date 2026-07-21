@@ -115,17 +115,25 @@ def train_lightgcn(dataset, config, device, seed):
     optimizer = torch.optim.Adam(model.parameters(), lr=config["gcn_lr"])
     rng = np.random.RandomState(seed)
 
-    # Training data: positive interactions from train split
-    train = dataset.train
-    pos_mask = train.rewards > 0
-    train_users = train.user_ids[pos_mask]
-    train_items = train.actions[pos_mask]
+    if "Criteo" in dataset.name:
+        # For Criteo (user-user graph), train on graph edges (link prediction)
+        adj_coo = dataset.adj.tocoo()
+        train_users = adj_coo.row
+        train_items = adj_coo.col
+        n_items_for_neg = dataset.n_users
+    else:
+        # Training data: positive interactions from train split
+        train = dataset.train
+        pos_mask = train.rewards > 0
+        train_users = train.user_ids[pos_mask]
+        train_items = train.actions[pos_mask]
 
-    if len(train_users) == 0:
-        print("  WARNING: No positive interactions in training data!")
-        print("  Using all interactions instead.")
-        train_users = train.user_ids
-        train_items = train.actions
+        if len(train_users) == 0:
+            print("  WARNING: No positive interactions in training data!")
+            print("  Using all interactions instead.")
+            train_users = train.user_ids
+            train_items = train.actions
+        n_items_for_neg = dataset.n_items
 
     print(f"  Positive interactions for BPR: {len(train_users):,}")
     print(f"  Graph nodes: {dataset.n_nodes}, Embed dim: {config['gcn_embed_dim']}")
@@ -141,7 +149,7 @@ def train_lightgcn(dataset, config, device, seed):
             u = torch.LongTensor(train_users[idx]).to(device)
             p = torch.LongTensor(train_items[idx]).to(device)
             neg = LightGCN.sample_negatives(
-                train_users[idx], train_items[idx], dataset.n_items, rng
+                train_users[idx], train_items[idx], n_items_for_neg, rng
             )
             n = torch.LongTensor(neg).to(device)
 
