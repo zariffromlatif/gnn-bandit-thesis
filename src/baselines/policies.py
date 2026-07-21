@@ -380,11 +380,17 @@ class UpliftPolicy:
         """Load uplift estimates from the preprocessing output."""
         import pandas as pd
         df = pd.read_csv(uplift_csv_path)
-        for _, row in df.iterrows():
-            uid = int(row["user_id"])
-            iid = int(row["item_id"])
-            if uid < self.n_users and iid < self.n_actions:
-                self.uplift_table[uid, iid] = row["uplift"]
+        if "cluster_id" in df.columns:
+            for _, row in df.iterrows():
+                uid = int(row["cluster_id"])
+                if uid < self.n_users:
+                    self.uplift_table[uid, 1] = float(row["uplift_conv"])
+        else:
+            for _, row in df.iterrows():
+                uid = int(row["user_id"])
+                iid = int(row["item_id"])
+                if uid < self.n_users and iid < self.n_actions:
+                    self.uplift_table[uid, iid] = row["uplift"]
 
     def action_probabilities(
         self,

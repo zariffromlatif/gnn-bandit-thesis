@@ -260,10 +260,12 @@ def train_gnn_bandit(dataset, states_train, config, device, seed,
 
     # Extract item embeddings for hybrid scoring
     item_emb = None
-    if gcn_model is not None:
+    if gcn_model is not None and dataset.n_nodes != dataset.n_users:
         with torch.no_grad():
             item_emb = gcn_model.get_item_embeddings().cpu().numpy()
         print(f"  Hybrid scoring enabled: item_emb {item_emb.shape}")
+    else:
+        print("  Hybrid scoring disabled (no explicit item nodes in graph)")
 
     # Compute uplift-weighted rewards if CATE model available
     raw_rewards = dataset.train.rewards.astype(np.float32)
@@ -469,10 +471,13 @@ def evaluate_all_policies(
                 logged_propensities=test.propensities,
             )
         elif name == "Greedy-GNN":
-            user_emb = gcn_model.encode_users(test.user_ids)
-            with torch.no_grad():
-                item_emb = gcn_model.get_item_embeddings().cpu().numpy()
-            probs = policy.action_probabilities(user_emb, item_emb)
+            if dataset.n_nodes == dataset.n_users:
+                probs = np.ones((len(test.user_ids), dataset.n_items)) / dataset.n_items
+            else:
+                user_emb = gcn_model.encode_users(test.user_ids)
+                with torch.no_grad():
+                    item_emb = gcn_model.get_item_embeddings().cpu().numpy()
+                probs = policy.action_probabilities(user_emb, item_emb)
         elif name == "MF-Bandit":
             probs = policy.action_probabilities(
                 test.contexts, user_ids=test.user_ids,
@@ -507,11 +512,18 @@ def run_sleeping_dogs(dataset, states_test, agent, baselines, gcn_model):
     import pandas as pd
     df = pd.read_csv(dataset.uplift_df_path)
     uplift_table = np.zeros((dataset.n_users, dataset.n_items), dtype=np.float32)
-    for _, row in df.iterrows():
-        uid = int(row["user_id"])
-        iid = int(row["item_id"])
-        if uid < dataset.n_users and iid < dataset.n_items:
-            uplift_table[uid, iid] = row["uplift"]
+    
+    if "Criteo" in dataset.name or "cluster_id" in df.columns:
+        for _, row in df.iterrows():
+            uid = int(row["cluster_id"])
+            if uid < dataset.n_users:
+                uplift_table[uid, 1] = float(row["uplift_conv"])
+    else:
+        for _, row in df.iterrows():
+            uid = int(row["user_id"])
+            iid = int(row["item_id"])
+            if uid < dataset.n_users and iid < dataset.n_items:
+                uplift_table[uid, iid] = float(row["uplift"])
 
     test = dataset.test
     results = {}
