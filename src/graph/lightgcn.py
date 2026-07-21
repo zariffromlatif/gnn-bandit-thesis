@@ -232,8 +232,16 @@ class LightGCN(nn.Module):
         all_emb = self.forward()
 
         u_emb   = all_emb[user_ids]
-        pos_emb = all_emb[self.n_users + pos_item_ids]
-        neg_emb = all_emb[self.n_users + neg_item_ids]
+        if self.n_nodes == self.n_users:
+            pos_emb = all_emb[pos_item_ids]
+            neg_emb = all_emb[neg_item_ids]
+            pos_emb_0 = self.embedding.weight[pos_item_ids]
+            neg_emb_0 = self.embedding.weight[neg_item_ids]
+        else:
+            pos_emb = all_emb[self.n_users + pos_item_ids]
+            neg_emb = all_emb[self.n_users + neg_item_ids]
+            pos_emb_0 = self.embedding.weight[self.n_users + pos_item_ids]
+            neg_emb_0 = self.embedding.weight[self.n_users + neg_item_ids]
 
         pos_score = (u_emb * pos_emb).sum(dim=1)
         neg_score = (u_emb * neg_emb).sum(dim=1)
@@ -243,8 +251,8 @@ class LightGCN(nn.Module):
         # L2 regularisation on initial (layer-0) embeddings only
         reg = reg_weight * (
             self.embedding.weight[user_ids].norm(2).pow(2)
-            + self.embedding.weight[self.n_users + pos_item_ids].norm(2).pow(2)
-            + self.embedding.weight[self.n_users + neg_item_ids].norm(2).pow(2)
+            + pos_emb_0.norm(2).pow(2)
+            + neg_emb_0.norm(2).pow(2)
         ) / len(user_ids)
 
         return bpr + reg
