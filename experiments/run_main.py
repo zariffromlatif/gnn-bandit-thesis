@@ -214,11 +214,17 @@ def train_cate_model(dataset, states_train, config, device):
         df = pd.read_csv(dataset.uplift_df_path)
         uplift_table = np.zeros(
             (dataset.n_users, dataset.n_items), dtype=np.float32)
-        for _, row in df.iterrows():
-            uid = int(row["user_id"])
-            iid = int(row["item_id"])
-            if uid < dataset.n_users and iid < dataset.n_items:
-                uplift_table[uid, iid] = row["uplift"]
+        if "Criteo" in dataset.name:
+            for _, row in df.iterrows():
+                uid = int(row["cluster_id"])
+                if uid < dataset.n_users:
+                    uplift_table[uid, 1] = float(row["uplift_conv"])
+        else:
+            for _, row in df.iterrows():
+                uid = int(row["user_id"])
+                iid = int(row["item_id"])
+                if uid < dataset.n_users and iid < dataset.n_items:
+                    uplift_table[uid, iid] = float(row["uplift"])
 
         print(f"  Using precomputed uplift table: {uplift_table.shape}")
         print(f"  Non-zero entries: {(uplift_table != 0).sum():,}")
