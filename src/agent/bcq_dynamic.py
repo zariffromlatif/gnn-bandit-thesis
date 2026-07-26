@@ -133,8 +133,19 @@ class DynamicBCQAgent:
                 with torch.no_grad():
                     # Evaluate next actions via target network
                     q_next_all = self.q_target(s_next_batch).view(B, self.n_actions, self.num_quantiles)
+                    
+                    # Compute Behavioral Cloning Mask for next states
+                    bc_probs_next = F.softmax(self.bc_model(s_next_batch), dim=1)
+                    mask_next = self._safe_mask(bc_probs_next)
+                    
                     # Use CVaR to select the best next action (risk-averse target)
                     q_next_cvar = self._compute_cvar(q_next_all)
+                    
+                    # **CRITICAL BCQ FIX**: Mask out OOD actions before taking argmax
+                    # Without this, the target Q-values will suffer from severe extrapolation error
+                    # and recursively explode to infinity!
+                    q_next_cvar[~mask_next] = float("-inf")
+                    
                     next_actions = q_next_cvar.argmax(dim=1) # (B,)
                     
                     # Get the target quantiles for the chosen next action
