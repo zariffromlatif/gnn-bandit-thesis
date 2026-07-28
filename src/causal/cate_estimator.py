@@ -41,10 +41,24 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
+from torch.autograd import Function
+
+class GradientReversal(Function):
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.alpha = alpha
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.neg() * ctx.alpha, None
+
+def grad_reverse(x, alpha=1.0):
+    return GradientReversal.apply(x, alpha)
 
 
 class _CATENetwork(nn.Module):
-    """MLP that predicts CATE(x, a) for all actions simultaneously."""
+    """MLP that predicts CATE(x, a) and treatment assignment."""
 
     def __init__(self, input_dim: int, n_actions: int, hidden: int = 128,
                  n_hidden: int = 2, dropout: float = 0.1):
@@ -54,11 +68,17 @@ class _CATENetwork(nn.Module):
         for _ in range(n_hidden):
             layers += [nn.Linear(prev, hidden), nn.ReLU(), nn.Dropout(dropout)]
             prev = hidden
-        layers.append(nn.Linear(prev, n_actions))
-        self.net = nn.Sequential(*layers)
+        self.encoder = nn.Sequential(*layers)
+        self.uplift_head = nn.Linear(prev, n_actions)
+        self.treatment_head = nn.Linear(prev, n_actions)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+    def forward(self, x: torch.Tensor, alpha: float = 1.0):
+        phi = self.encoder(x)
+        uplift = self.uplift_head(phi)
+        
+        phi_rev = grad_reverse(phi, alpha)
+        treatment = self.treatment_head(phi_rev)
+        return uplift, treatment
 
 
 class CATEEstimator:
@@ -109,8 +129,10 @@ class CATEEstimator:
         states: np.ndarray,
         user_ids: np.ndarray,
         uplift_table: np.ndarray,
+        logged_actions: np.ndarray,
         n_epochs: int = 50,
         batch_size: int = 16384,
+        cfr_lambda: float = 0.1,
         verbose: bool = True,
     ):
         """
@@ -125,8 +147,10 @@ class CATEEstimator:
         states : (N, D) augmented state vectors (context + GNN embedding).
         user_ids : (N,) user indices into the uplift table.
         uplift_table : (n_users, n_actions) precomputed uplift values.
+        logged_actions: (N,) taken actions for CFR-GNN constraint.
         n_epochs : number of training epochs.
         batch_size : mini-batch size.
+        cfr_lambda: strength of counterfactual regularisation.
         verbose : print training progress.
         """
         # Build per-sample uplift targets
@@ -134,10 +158,11 @@ class CATEEstimator:
 
         S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
         T = torch.as_tensor(targets, dtype=torch.float32, device=self.device)
+        A = torch.as_tensor(logged_actions, dtype=torch.long, device=self.device)
 
         if verbose:
             print(f"  [CATE] Training on {len(states):,} samples, "
-                  f"{n_epochs} epochs")
+                  f"{n_epochs} epochs | CFR lambda: {cfr_lambda}")
 
         self.model.train()
         N = len(S)
@@ -147,9 +172,13 @@ class CATEEstimator:
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
                 idx = indices[start:end]
-                s_batch, t_batch = S[idx], T[idx]
-                pred = self.model(s_batch)
-                loss = F.mse_loss(pred, t_batch)
+                s_batch, t_batch, a_batch = S[idx], T[idx], A[idx]
+                
+                pred_uplift, pred_treatment = self.model(s_batch, alpha=cfr_lambda)
+                loss_uplift = F.mse_loss(pred_uplift, t_batch)
+                loss_treatment = F.cross_entropy(pred_treatment, a_batch)
+                
+                loss = loss_uplift + loss_treatment
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
@@ -166,6 +195,7 @@ class CATEEstimator:
         rewards: np.ndarray,
         n_epochs: int = 50,
         batch_size: int = 16384,
+        cfr_lambda: float = 0.1,
         verbose: bool = True,
     ):
         """
@@ -181,6 +211,7 @@ class CATEEstimator:
         states : (N, D) state vectors.
         actions : (N,) taken actions.
         rewards : (N,) observed rewards.
+        cfr_lambda : strength of counterfactual regularisation.
         """
         # Compute per-action mean reward as a baseline
         action_mean_reward = np.zeros(self.n_actions, dtype=np.float32)
@@ -203,9 +234,10 @@ class CATEEstimator:
 
         S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
         T = torch.as_tensor(targets, dtype=torch.float32, device=self.device)
+        A = torch.as_tensor(actions, dtype=torch.long, device=self.device)
 
         if verbose:
-            print(f"  [CATE] Training from outcomes on {len(states):,} samples")
+            print(f"  [CATE] Training from outcomes on {len(states):,} samples | CFR lambda: {cfr_lambda}")
 
         self.model.train()
         N = len(S)
@@ -215,9 +247,13 @@ class CATEEstimator:
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
                 idx = indices[start:end]
-                s_batch, t_batch = S[idx], T[idx]
-                pred = self.model(s_batch)
-                loss = F.mse_loss(pred, t_batch)
+                s_batch, t_batch, a_batch = S[idx], T[idx], A[idx]
+                
+                pred_uplift, pred_treatment = self.model(s_batch, alpha=cfr_lambda)
+                loss_uplift = F.mse_loss(pred_uplift, t_batch)
+                loss_treatment = F.cross_entropy(pred_treatment, a_batch)
+                
+                loss = loss_uplift + loss_treatment
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
@@ -243,7 +279,9 @@ class CATEEstimator:
         for start in range(0, N, batch_size):
             end = min(start + batch_size, N)
             S = torch.FloatTensor(states[start:end]).to(self.device)
-            all_cate[start:end] = self.model(S).cpu().numpy()
+            # Only use the uplift head for prediction, ignore treatment predictions
+            pred_uplift, _ = self.model(S)
+            all_cate[start:end] = pred_uplift.cpu().numpy()
 
         return all_cate
 

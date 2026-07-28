@@ -230,7 +230,10 @@ def train_cate_model(dataset, states_train, config, device):
         print(f"  Non-zero entries: {(uplift_table != 0).sum():,}")
         cate.fit_from_uplift_table(
             states_train, dataset.train.user_ids,
-            uplift_table, n_epochs=config["cate_epochs"],
+            uplift_table,
+            logged_actions=dataset.train.actions,
+            n_epochs=config["cate_epochs"],
+            cfr_lambda=config.get("cate_cfr_lambda", 0.1),
         )
     else:
         # Fall back to outcome-based estimation (e.g. Criteo)
@@ -239,6 +242,7 @@ def train_cate_model(dataset, states_train, config, device):
             states_train, dataset.train.actions,
             dataset.train.rewards.astype(np.float32),
             n_epochs=config["cate_epochs"],
+            cfr_lambda=config.get("cate_cfr_lambda", 0.1),
         )
 
     # Print segmentation summary
