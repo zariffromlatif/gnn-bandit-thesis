@@ -78,6 +78,12 @@ def sweep_one(
             "DR_ci_upper": dr.ci_upper if dr else None,
         }
 
+        import gc
+        del gcn, s_train, s_test, rm, cate, agent, probs, rm_preds
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     return results
 
 
