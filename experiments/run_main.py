@@ -38,6 +38,7 @@ from src.baselines.policies import (
     RandomPolicy, BTSPolicy, DQNPolicy,
     MFBanditPolicy, GreedyGNNPolicy, UpliftPolicy,
     LinUCBPolicy, NeuralUCBPolicy, CQLPolicy, IQLPolicy,
+    DecisionTransformerPolicy
 )
 from src.ope.estimators import evaluate_all
 from src.utils.data_loader import load_dataset
@@ -322,17 +323,17 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
 
     # 1. Random
     baselines["Random"] = RandomPolicy(dataset.n_items)
-    print("  [ 1/10] Random policy ready.")
+    print("  [ 1/11] Random policy ready.")
 
     # 2. BTS (Thompson Sampling)
     baselines["BTS"] = BTSPolicy(
         dataset.n_items,
         default_propensity=1.0 / dataset.n_items,
     )
-    print("  [ 2/10] BTS policy ready.")
+    print("  [ 2/11] BTS policy ready.")
 
     # 3. LinUCB (standard contextual bandit)
-    print("  [ 3/10] Training LinUCB ...")
+    print("  [ 3/11] Training LinUCB ...")
     linucb = LinUCBPolicy(
         state_dim=states_train.shape[1],
         n_actions=dataset.n_items,
@@ -345,7 +346,7 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
     baselines["LinUCB"] = linucb
 
     # 4. NeuralUCB (neural contextual bandit)
-    print("  [ 4/10] Training NeuralUCB ...")
+    print("  [ 4/11] Training NeuralUCB ...")
     nucb = NeuralUCBPolicy(
         state_dim=states_train.shape[1],
         n_actions=dataset.n_items,
@@ -360,7 +361,7 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
     baselines["NeuralUCB"] = nucb
 
     # 5. DQN (no batch constraint)
-    print("  [ 5/10] Training DQN ...")
+    print("  [ 5/11] Training DQN ...")
     dqn = DQNPolicy(
         state_dim=states_train.shape[1],
         n_actions=dataset.n_items,
@@ -376,7 +377,7 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
     baselines["DQN"] = dqn
 
     # 6. CQL (conservative Q-learning)
-    print("  [ 6/10] Training CQL ...")
+    print("  [ 6/11] Training CQL ...")
     cql = CQLPolicy(
         state_dim=states_train.shape[1],
         n_actions=dataset.n_items,
@@ -392,7 +393,7 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
     baselines["CQL"] = cql
 
     # 7. IQL (implicit Q-learning)
-    print("  [ 7/10] Training IQL ...")
+    print("  [ 7/11] Training IQL ...")
     iql = IQLPolicy(
         state_dim=states_train.shape[1],
         n_actions=dataset.n_items,
@@ -408,7 +409,7 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
     baselines["IQL"] = iql
 
     # 8. MF + Bandit (no graph propagation)
-    print("  [ 8/10] Training MF-Bandit ...")
+    print("  [ 8/11] Training MF-Bandit ...")
     mf = MFBanditPolicy(
         n_users=dataset.n_users,
         n_items=dataset.n_items,
@@ -431,12 +432,27 @@ def train_baselines(dataset, states_train, gcn_model, config, device, seed):
     )
     baselines["MF-Bandit"] = mf
 
-    # 9. Greedy GNN (no RL)
-    baselines["Greedy-GNN"] = GreedyGNNPolicy(dataset.n_items)
-    print("  [ 9/10] Greedy-GNN policy ready.")
+    # 9. Decision Transformer (DT)
+    print("  [ 9/11] Training Decision Transformer ...")
+    dt = DecisionTransformerPolicy(
+        state_dim=states_train.shape[1],
+        n_actions=dataset.n_items,
+        device=str(device),
+    )
+    dt.train(
+        states_train,
+        dataset.train.actions,
+        dataset.train.rewards.astype(np.float32),
+        n_epochs=config["dqn_epochs"],
+    )
+    baselines["DecisionTransformer"] = dt
 
-    # 10. Uplift-only
-    print("  [10/10] Loading Uplift policy ...")
+    # 10. Greedy GNN (no RL)
+    baselines["Greedy-GNN"] = GreedyGNNPolicy(dataset.n_items)
+    print("  [10/11] Greedy-GNN policy ready.")
+
+    # 11. Uplift-only
+    print("  [11/11] Loading Uplift policy ...")
     uplift_pol = UpliftPolicy(dataset.n_users, dataset.n_items)
     if dataset.uplift_df_path and dataset.uplift_df_path.exists():
         uplift_pol.load_uplift(str(dataset.uplift_df_path))
@@ -684,7 +700,11 @@ def main():
                         help="Comma-separated random seeds (e.g. '0,1,2,3,4').")
     parser.add_argument("--output", type=str, default="experiments/results",
                         help="Output directory for results.")
+    parser.add_argument("--cfr_lambda", type=float, default=0.1,
+                        help="Counterfactual regularization strength.")
     args = parser.parse_args()
+
+    DEFAULT_CONFIG["cate_cfr_lambda"] = args.cfr_lambda
 
     seeds = [int(s) for s in args.seeds.split(",")]
     datasets = (["obd-all", "obd-men", "obd-women", "criteo"]

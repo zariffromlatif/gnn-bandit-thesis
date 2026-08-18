@@ -58,7 +58,12 @@ def grad_reverse(x, alpha=1.0):
 
 
 class _CATENetwork(nn.Module):
-    """MLP that predicts CATE(x, a) and treatment assignment."""
+    """MLP that predicts CATE(x, a) and treatment assignment.
+
+    The treatment head uses spectral normalization to bound its
+    Lipschitz constant, preventing the adversarial discriminator
+    from overpowering the encoder during GRL training.
+    """
 
     def __init__(self, input_dim: int, n_actions: int, hidden: int = 128,
                  n_hidden: int = 2, dropout: float = 0.1):
@@ -70,7 +75,11 @@ class _CATENetwork(nn.Module):
             prev = hidden
         self.encoder = nn.Sequential(*layers)
         self.uplift_head = nn.Linear(prev, n_actions)
-        self.treatment_head = nn.Linear(prev, n_actions)
+        # Spectral norm bounds the discriminator's Lipschitz constant,
+        # preventing mode collapse during adversarial training.
+        self.treatment_head = nn.utils.spectral_norm(
+            nn.Linear(prev, n_actions)
+        )
 
     def forward(self, x: torch.Tensor, alpha: float = 1.0):
         phi = self.encoder(x)
@@ -166,7 +175,16 @@ class CATEEstimator:
 
         self.model.train()
         N = len(S)
+        warmup_epochs = int(n_epochs * 0.6)
         for epoch in range(n_epochs):
+            # Curriculum α: ramp from 0 → cfr_lambda over first 60% of epochs.
+            # This lets the encoder learn useful uplift representations
+            # before adversarial pressure kicks in.
+            if epoch < warmup_epochs:
+                current_alpha = cfr_lambda * (epoch / warmup_epochs)
+            else:
+                current_alpha = cfr_lambda
+
             total_loss = 0.0
             indices = torch.randperm(N, device=self.device)
             for start in range(0, N, batch_size):
@@ -174,18 +192,20 @@ class CATEEstimator:
                 idx = indices[start:end]
                 s_batch, t_batch, a_batch = S[idx], T[idx], A[idx]
                 
-                pred_uplift, pred_treatment = self.model(s_batch, alpha=cfr_lambda)
+                pred_uplift, pred_treatment = self.model(s_batch, alpha=current_alpha)
                 loss_uplift = F.mse_loss(pred_uplift, t_batch)
                 loss_treatment = F.cross_entropy(pred_treatment, a_batch)
                 
                 loss = loss_uplift + loss_treatment
                 self.optim.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optim.step()
                 total_loss += loss.item() * len(s_batch)
             if verbose and (epoch + 1) % 10 == 0:
                 print(f"    CATE epoch {epoch+1:3d}  "
-                      f"MSE: {total_loss / len(states):.8f}")
+                      f"MSE: {total_loss / len(states):.8f}  "
+                      f"alpha: {current_alpha:.4f}")
         self.model.eval()
 
     def fit_from_outcomes(
@@ -241,7 +261,14 @@ class CATEEstimator:
 
         self.model.train()
         N = len(S)
+        warmup_epochs = int(n_epochs * 0.6)
         for epoch in range(n_epochs):
+            # Curriculum α: ramp from 0 → cfr_lambda over first 60% of epochs.
+            if epoch < warmup_epochs:
+                current_alpha = cfr_lambda * (epoch / warmup_epochs)
+            else:
+                current_alpha = cfr_lambda
+
             total_loss = 0.0
             indices = torch.randperm(N, device=self.device)
             for start in range(0, N, batch_size):
@@ -249,18 +276,20 @@ class CATEEstimator:
                 idx = indices[start:end]
                 s_batch, t_batch, a_batch = S[idx], T[idx], A[idx]
                 
-                pred_uplift, pred_treatment = self.model(s_batch, alpha=cfr_lambda)
+                pred_uplift, pred_treatment = self.model(s_batch, alpha=current_alpha)
                 loss_uplift = F.mse_loss(pred_uplift, t_batch)
                 loss_treatment = F.cross_entropy(pred_treatment, a_batch)
                 
                 loss = loss_uplift + loss_treatment
                 self.optim.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optim.step()
                 total_loss += loss.item() * len(s_batch)
             if verbose and (epoch + 1) % 10 == 0:
                 print(f"    CATE epoch {epoch+1:3d}  "
-                      f"MSE: {total_loss / len(states):.8f}")
+                      f"MSE: {total_loss / len(states):.8f}  "
+                      f"alpha: {current_alpha:.4f}")
         self.model.eval()
 
     @torch.no_grad()

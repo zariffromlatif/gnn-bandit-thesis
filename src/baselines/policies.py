@@ -787,3 +787,90 @@ class IQLPolicy:
         advantage = q - v                                    # (N, A)
         return F.softmax(advantage / self.temperature,
                          dim=1).cpu().numpy()
+
+# ============================================================================
+# Decision Transformer (Chen et al., NeurIPS 2021)
+# ============================================================================
+
+class DecisionTransformerPolicy:
+    """
+    Decision Transformer adapted for contextual bandits.
+    
+    Instead of Q-learning, models the problem as: given (return, state),
+    predict the action. At inference, conditions on the maximum observed
+    return to select optimal actions.
+    
+    Reference: Chen et al., "Decision Transformer: Reinforcement Learning
+    via Sequence Modeling", NeurIPS 2021.
+    """
+    def __init__(self, state_dim: int, n_actions: int, hidden: int = 128,
+                 n_hidden: int = 2, lr: float = 1e-3, temperature: float = 0.1,
+                 device: str = "cpu"):
+        self.state_dim = state_dim
+        self.n_actions = n_actions
+        self.temperature = temperature
+        self.device = torch.device(device)
+        self.target_return = 0.0
+
+        # We treat the input as [return_to_go, state]
+        input_dim = 1 + state_dim
+        
+        # Simple MLP as the sequence length is 1 (bandit setting)
+        layers = []
+        prev = input_dim
+        for _ in range(n_hidden):
+            layers += [nn.Linear(prev, hidden), nn.ReLU(), nn.Dropout(0.1)]
+            prev = hidden
+        layers.append(nn.Linear(prev, n_actions))
+        
+        self.net = nn.Sequential(*layers).to(self.device)
+        self.optim = torch.optim.Adam(self.net.parameters(), lr=lr)
+
+    def train(self, states: np.ndarray, actions: np.ndarray,
+              rewards: np.ndarray, n_epochs: int = 50,
+              batch_size: int = 16384, verbose: bool = True):
+        S = torch.FloatTensor(states).to(self.device)
+        A = torch.LongTensor(actions).to(self.device)
+        R = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+        N = len(S)
+        
+        # Set target return for inference to 95th percentile of observed rewards
+        self.target_return = float(np.percentile(rewards, 95))
+
+        self.net.train()
+        for epoch in range(n_epochs):
+            total_loss = 0.0
+            indices = torch.randperm(N, device=self.device)
+            for start in range(0, N, batch_size):
+                end = min(start + batch_size, N)
+                idx = indices[start:end]
+                s, a, r = S[idx], A[idx], R[idx]
+                
+                # Input is [return, state]
+                x = torch.cat([r, s], dim=1)
+                
+                logits = self.net(x)
+                loss = F.cross_entropy(logits, a)
+                
+                self.optim.zero_grad()
+                loss.backward()
+                self.optim.step()
+                total_loss += loss.item() * len(s)
+                
+            if verbose and (epoch + 1) % 10 == 0:
+                print(f"    DT epoch {epoch+1:3d}  loss: {total_loss/N:.4f}")
+        self.net.eval()
+
+    @torch.no_grad()
+    def action_probabilities(self, states: np.ndarray) -> np.ndarray:
+        S = torch.FloatTensor(states).to(self.device)
+        N = len(S)
+        
+        # Condition on the high target return
+        R_target = torch.full((N, 1), self.target_return, device=self.device)
+        x = torch.cat([R_target, S], dim=1)
+        
+        logits = self.net(x)
+        # Apply temperature for exploration/exploitation balance
+        return F.softmax(logits / self.temperature, dim=1).cpu().numpy()
+
