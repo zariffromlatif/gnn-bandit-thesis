@@ -360,21 +360,103 @@ class CATEEstimator:
             "per_sample_cate": cate_scores,
         }
 
+    def propagate_cate(
+        self,
+        raw_cate: np.ndarray,
+        user_ids: np.ndarray,
+        adj,
+        n_nodes: Optional[int] = None,
+        n_hops: int = 2,
+        beta: float = 0.3,
+    ) -> np.ndarray:
+        """
+        Graph-Propagated CATE (GP-CATE): smooth uplift estimates through the
+        interaction graph for denoised, neighborhood-aware predictions.
+
+        Formula:
+            T^{(l+1)} = (1 - beta) * T^{(l)} + beta * A_norm * T^{(l)}
+            C^{GP}_i = (1 - beta) * C_i + beta * T^{(L)}_{u_i}
+
+        Parameters
+        ----------
+        raw_cate : (N, n_actions) raw model predictions
+        user_ids : (N,) user index corresponding to each sample
+        adj : scipy.sparse matrix or torch.sparse.Tensor of shape (n_nodes, n_nodes)
+        n_nodes : total graph nodes (users + items). If None, inferred from adj.
+        n_hops : number of graph propagation layers (default: 2)
+        beta : graph smoothing coefficient in [0, 1] (default: 0.3)
+
+        Returns
+        -------
+        propagated_cate : (N, n_actions) smoothed uplift estimates
+        """
+        if adj is None or beta <= 0.0 or n_hops <= 0:
+            return raw_cate
+
+        import scipy.sparse as sp
+
+        if n_nodes is None:
+            n_nodes = adj.shape[0]
+
+        n_actions = raw_cate.shape[1]
+        unique_users = np.unique(user_ids)
+        max_user_idx = int(unique_users.max())
+
+        # Step 1: Aggregate sample CATE to user-node level
+        node_uplift = np.zeros((n_nodes, n_actions), dtype=np.float32)
+        user_counts = np.zeros(max_user_idx + 1, dtype=np.float32)
+
+        for i, uid in enumerate(user_ids):
+            node_uplift[uid] += raw_cate[i]
+            user_counts[uid] += 1.0
+
+        nonzero = user_counts > 0
+        for uid in unique_users:
+            if user_counts[uid] > 0:
+                node_uplift[uid] /= user_counts[uid]
+
+        # Step 2: Symmetrically normalize adjacency if needed
+        if sp.issparse(adj):
+            adj_csr = adj.tocsr().astype(np.float32)
+            rowsum = np.array(adj_csr.sum(axis=1)).flatten()
+            d_inv_sqrt = np.power(np.maximum(rowsum, 1e-12), -0.5)
+            d_mat = sp.diags(d_inv_sqrt)
+            norm_adj = d_mat.dot(adj_csr).dot(d_mat)
+
+            # Step 3: Multi-hop graph propagation
+            T = node_uplift.copy()
+            for _ in range(n_hops):
+                T = (1.0 - beta) * T + beta * norm_adj.dot(T)
+        else:
+            # Dense numpy fallback
+            rowsum = adj.sum(axis=1, keepdims=True)
+            d_inv = np.power(np.maximum(rowsum, 1e-12), -0.5)
+            norm_adj = d_inv * adj * d_inv.T
+            T = node_uplift.copy()
+            for _ in range(n_hops):
+                T = (1.0 - beta) * T + beta * (norm_adj @ T)
+
+        # Step 4: Map back smoothed node uplift to individual samples
+        smoothed_user_cate = T[user_ids]  # (N, n_actions)
+        propagated_cate = (1.0 - beta) * raw_cate + beta * smoothed_user_cate
+        return propagated_cate.astype(np.float32)
+
     def uplift_weighted_rewards(
         self,
         states: np.ndarray,
         actions: np.ndarray,
         rewards: np.ndarray,
         uplift_weight: float = 0.5,
+        user_ids: Optional[np.ndarray] = None,
+        adj=None,
+        n_nodes: Optional[int] = None,
+        gp_cate_hops: int = 2,
+        gp_cate_beta: float = 0.3,
     ) -> np.ndarray:
         """
-        Create uplift-weighted rewards for BCQ training.
+        Create uplift-weighted rewards for BCQ training, optionally enhanced by GP-CATE.
 
         Combined reward = (1 - w) * raw_reward + w * CATE(x, a_taken)
-
-        This teaches the Q-network to optimise for treatment effect,
-        not just raw response.  Users with negative uplift (Sleeping Dogs)
-        get penalised even if they clicked.
 
         Parameters
         ----------
@@ -382,12 +464,25 @@ class CATEEstimator:
         actions : (N,)
         rewards : (N,)
         uplift_weight : float, blending weight for CATE component.
+        user_ids : Optional (N,) array of user indices for GP-CATE.
+        adj : Optional graph adjacency matrix for GP-CATE.
+        n_nodes : Optional total graph node count.
+        gp_cate_hops : Number of propagation hops for GP-CATE.
+        gp_cate_beta : Mixing factor for GP-CATE.
 
         Returns
         -------
         weighted_rewards : (N,) blended rewards.
         """
         cate_scores = self.predict(states)                  # (N, A)
+
+        # Apply Graph-Propagated CATE if graph structure is provided
+        if adj is not None and user_ids is not None:
+            cate_scores = self.propagate_cate(
+                cate_scores, user_ids, adj, n_nodes,
+                n_hops=gp_cate_hops, beta=gp_cate_beta
+            )
+
         cate_taken = cate_scores[np.arange(len(actions)), actions]  # (N,)
 
         # Normalise CATE to [0, 1] range for blending

@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.graph.lightgcn import LightGCN
+from src.graph.tgn import TGNEncoder
 from src.agent.bcq import BCQAgent
 from src.causal.cate_estimator import CATEEstimator
 from src.baselines.policies import (
@@ -50,13 +51,19 @@ from src.utils.metrics import RewardModel, evaluate_policy, sleeping_dogs_analys
 # ============================================================================
 
 DEFAULT_CONFIG = {
-    # LightGCN
+    # Graph Encoder (LightGCN or TGN)
+    "graph_encoder":  "lightgcn",  # "lightgcn" or "tgn"
     "gcn_embed_dim":  64,
     "gcn_n_layers":   3,
     "gcn_lr":         1e-3,
     "gcn_epochs":     100,
     "gcn_batch_size": 16384,
     "gcn_reg":        1e-4,
+
+    # Graph-Propagated CATE (GP-CATE)
+    "use_gp_cate":    True,
+    "gp_cate_hops":   2,
+    "gp_cate_beta":   0.3,
 
     # BCQ
     "bcq_hidden":          256,
@@ -96,15 +103,41 @@ DEFAULT_CONFIG = {
 # Pipeline steps
 # ============================================================================
 
-def train_lightgcn(dataset, config, device, seed):
-    """Step 1: Train LightGCN and produce user embeddings."""
+def train_graph_encoder(dataset, config, device, seed):
+    """Step 1: Train Graph Encoder (LightGCN or TGN) and produce user embeddings."""
+    encoder_type = config.get("graph_encoder", "lightgcn").lower()
     print("\n" + "=" * 60)
-    print("STEP 1: Training LightGCN")
+    print(f"STEP 1: Training Graph Encoder [{encoder_type.upper()}]")
     print("=" * 60)
 
     torch.manual_seed(seed)
     np.random.seed(seed)
 
+    if encoder_type == "tgn":
+        # Check if timestamps are available
+        has_timestamps = hasattr(dataset.train, "timestamps") or "timestamps" in dataset.train.__dict__
+        timestamps = getattr(dataset.train, "timestamps", None)
+        if timestamps is None:
+            # Fallback timestamps if not in split
+            timestamps = np.arange(len(dataset.train.actions), dtype=np.float32)
+
+        model = TGNEncoder(
+            n_nodes=dataset.n_nodes,
+            embed_dim=config["gcn_embed_dim"],
+            n_users=dataset.n_users,
+        ).to(device)
+
+        model.fit(
+            user_ids=dataset.train.user_ids,
+            item_ids=dataset.train.actions,
+            timestamps=timestamps,
+            epochs=min(config["gcn_epochs"], 30),
+            lr=config["gcn_lr"],
+            reg=config["gcn_reg"],
+        )
+        return model
+
+    # Default: LightGCN
     model = LightGCN(
         n_nodes=dataset.n_nodes,
         embed_dim=config["gcn_embed_dim"],
@@ -276,10 +309,22 @@ def train_gnn_bandit(dataset, states_train, config, device, seed,
     raw_rewards = dataset.train.rewards.astype(np.float32)
     if cate_model is not None:
         uplift_weight = config.get("cate_uplift_weight", 0.5)
-        train_rewards = cate_model.uplift_weighted_rewards(
-            states_train, dataset.train.actions, raw_rewards,
-            uplift_weight=uplift_weight,
-        )
+        if config.get("use_gp_cate", True):
+            train_rewards = cate_model.uplift_weighted_rewards(
+                states_train, dataset.train.actions, raw_rewards,
+                uplift_weight=uplift_weight,
+                user_ids=dataset.train.user_ids,
+                adj=dataset.adj,
+                n_nodes=dataset.n_nodes,
+                gp_cate_hops=config.get("gp_cate_hops", 2),
+                gp_cate_beta=config.get("gp_cate_beta", 0.3),
+            )
+            print(f"  Graph-Propagated CATE enabled (hops={config.get('gp_cate_hops', 2)}, beta={config.get('gp_cate_beta', 0.3)})")
+        else:
+            train_rewards = cate_model.uplift_weighted_rewards(
+                states_train, dataset.train.actions, raw_rewards,
+                uplift_weight=uplift_weight,
+            )
         print(f"  Uplift-weighted rewards: weight={uplift_weight:.2f}, "
               f"mean={train_rewards.mean():.6f} (raw={raw_rewards.mean():.6f})")
     else:
@@ -515,6 +560,47 @@ def evaluate_all_policies(
             clip=config["ope_clip"], label=name,
         )
 
+    # If dataset has a fully-observed ground-truth reward matrix (e.g. KuaiRec),
+    # compute the exact policy value directly: V*(pi) = E_u [ sum_a pi(a|u) * R*(u, a) ]
+    if dataset.ground_truth_matrix is not None:
+        gt_mat = dataset.ground_truth_matrix
+        print("\n  Computing Exact Ground-Truth Policy Values (KuaiRec small_matrix) ...")
+        for name in all_results.keys():
+            # Get action probabilities for test users
+            if name == "GNN-Bandit":
+                p = agent.action_probabilities(states_test)
+            elif name == "BTS":
+                p = baselines["BTS"].action_probabilities(
+                    states_test, logged_actions=test.actions, logged_propensities=test.propensities)
+            elif name == "Greedy-GNN":
+                if dataset.n_nodes == dataset.n_users:
+                    p = np.ones((len(test.user_ids), dataset.n_items)) / dataset.n_items
+                else:
+                    user_emb = gcn_model.encode_users(test.user_ids)
+                    with torch.no_grad():
+                        item_emb = gcn_model.get_item_embeddings().cpu().numpy()
+                    p = baselines["Greedy-GNN"].action_probabilities(user_emb, item_emb)
+            elif name == "MF-Bandit":
+                p = baselines["MF-Bandit"].action_probabilities(test.contexts, user_ids=test.user_ids)
+            elif name == "Uplift-Only":
+                p = baselines["Uplift-Only"].action_probabilities(states_test, user_ids=test.user_ids)
+            else:
+                p = baselines[name].action_probabilities(states_test)
+
+            # Map test rows to ground-truth user matrix
+            test_uids = test.user_ids
+            # Exact expected reward for user u under policy p(a|u): sum_a p(a|u) * gt[u, a]
+            row_gt = gt_mat[test_uids]  # (N, n_actions)
+            exact_val = float(np.mean(np.sum(p * row_gt, axis=1)))
+            all_results[name]["Exact_GT"] = {
+                "value": exact_val,
+                "std": 0.0,
+                "ci_lower": exact_val,
+                "ci_upper": exact_val,
+                "n": len(test_uids),
+            }
+            print(f"    {name:<22}: Exact GT Value = {exact_val:.6f}")
+
     return all_results
 
 
@@ -602,8 +688,8 @@ def run_experiment(dataset_name: str, seed: int, config: dict,
           f"Val: {len(dataset.val.contexts):,} | "
           f"Test: {len(dataset.test.contexts):,}")
 
-    # 1. Train LightGCN
-    gcn_model = train_lightgcn(dataset, config, device, seed)
+    # 1. Train Graph Encoder (LightGCN or TGN)
+    gcn_model = train_graph_encoder(dataset, config, device, seed)
 
     # Build augmented states (context + GNN embedding)
     print("\n  Building augmented states ...")
@@ -648,13 +734,15 @@ def run_experiment(dataset_name: str, seed: int, config: dict,
     ope_serialised = {}
     for method, estimators in ope_results.items():
         ope_serialised[method] = {
-            est_name: {
-                "value": res.value,
-                "std":   res.std,
-                "ci_lower": res.ci_lower,
-                "ci_upper": res.ci_upper,
-                "n": res.n,
-            }
+            est_name: (
+                res if isinstance(res, dict) else {
+                    "value": res.value,
+                    "std":   res.std,
+                    "ci_lower": res.ci_lower,
+                    "ci_upper": res.ci_upper,
+                    "n": res.n,
+                }
+            )
             for est_name, res in estimators.items()
         }
 
@@ -694,28 +782,46 @@ def main():
     )
     parser.add_argument("--dataset", type=str, default="obd-all",
                         choices=["obd-all", "obd-men", "obd-women",
-                                 "criteo", "all"],
+                                 "criteo", "kuairec", "kuairand",
+                                 "all", "all-extended"],
                         help="Dataset to evaluate on.")
     parser.add_argument("--seeds", type=str, default="0",
                         help="Comma-separated random seeds (e.g. '0,1,2,3,4').")
     parser.add_argument("--output", type=str, default="experiments/results",
                         help="Output directory for results.")
-    parser.add_argument("--cfr_lambda", type=float, default=0.1,
+    parser.add_argument("--cfr_lambda", type=float, default=0.05,
                         help="Counterfactual regularization strength.")
+    parser.add_argument("--graph_encoder", type=str, default="lightgcn",
+                        choices=["lightgcn", "tgn"],
+                        help="Graph encoder architecture.")
+    parser.add_argument("--no_gp_cate", action="store_true",
+                        help="Disable Graph-Propagated CATE smoothing.")
+    parser.add_argument("--gp_cate_beta", type=float, default=0.3,
+                        help="Graph propagation mixing factor for GP-CATE.")
+    parser.add_argument("--gp_cate_hops", type=int, default=2,
+                        help="Graph propagation hops for GP-CATE.")
     args = parser.parse_args()
 
     DEFAULT_CONFIG["cate_cfr_lambda"] = args.cfr_lambda
+    DEFAULT_CONFIG["graph_encoder"] = args.graph_encoder
+    DEFAULT_CONFIG["use_gp_cate"] = not args.no_gp_cate
+    DEFAULT_CONFIG["gp_cate_beta"] = args.gp_cate_beta
+    DEFAULT_CONFIG["gp_cate_hops"] = args.gp_cate_hops
 
     seeds = [int(s) for s in args.seeds.split(",")]
-    datasets = (["obd-all", "obd-men", "obd-women", "criteo"]
-                if args.dataset == "all" else [args.dataset])
+    if args.dataset == "all":
+        datasets = ["obd-all", "obd-men", "obd-women", "criteo"]
+    elif args.dataset == "all-extended":
+        datasets = ["obd-all", "obd-men", "obd-women", "criteo", "kuairec", "kuairand"]
+    else:
+        datasets = [args.dataset]
 
     config = DEFAULT_CONFIG.copy()
 
     for ds in datasets:
         for seed in seeds:
             print(f"\n{'#' * 60}")
-            print(f"# Dataset: {ds}  |  Seed: {seed}")
+            print(f"# Dataset: {ds}  |  Seed: {seed}  |  Encoder: {config['graph_encoder']}")
             print(f"{'#' * 60}")
             run_experiment(ds, seed, config, args.output)
 

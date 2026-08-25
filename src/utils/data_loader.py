@@ -47,6 +47,7 @@ class BanditDataset:
     item_features:   Optional[np.ndarray] = None   # (n_items, F)
     uplift_df_path:  Optional[Path] = None
     user2id:         Optional[dict] = None
+    ground_truth_matrix: Optional[np.ndarray] = None  # KuaiRec only: (n_users, n_items)
 
 
 # ============================================================================
@@ -194,6 +195,124 @@ def load_criteo(data_dir: str = "data/processed_criteo",
 
 
 # ============================================================================
+# KuaiRec loader (short-video, fully-observed ground truth)
+# ============================================================================
+
+def load_kuairec(data_dir: str = "data/processed_kuairec",
+                 root: Optional[str] = None) -> BanditDataset:
+    """
+    Load KuaiRec short-video dataset processed by ``preprocess_kuairec.py``.
+
+    KuaiRec has a fully-observed user-item matrix enabling exact ground-truth
+    policy evaluation without OPE variance.  Videos are clustered into K
+    categories; each cluster is one bandit action.
+    """
+    if root is None:
+        root = Path(__file__).resolve().parents[2]
+    base = Path(root) / data_dir
+
+    with open(base / "stats.json") as f:
+        stats = json.load(f)
+
+    n_users = stats["n_user_segments"]
+    n_items = stats["n_items"]  # number of video clusters
+    adj = load_npz(base / "lightgcn_adj.npz")
+    item_features = np.load(base / "item_features.npy")
+    gt_matrix = np.load(base / "ground_truth_matrix.npy")
+
+    with open(base / "user2id.pkl", "rb") as f:
+        user2id = pickle.load(f)
+
+    def _load_split(split_name: str) -> BanditSplit:
+        data = np.load(base / f"context_{split_name}.npz")
+        return BanditSplit(
+            contexts=data["contexts"],
+            actions=data["item_id"],
+            rewards=data["click"],
+            propensities=data["propensity_score"],
+            user_ids=data["user_id"],
+        )
+
+    train = _load_split("train")
+    val   = _load_split("val")
+    test  = _load_split("test")
+
+    return BanditDataset(
+        name="KuaiRec",
+        train=train, val=val, test=test,
+        adj=adj,
+        n_users=n_users,
+        n_items=n_items,
+        n_nodes=n_users + n_items,
+        context_dim=stats["context_dim"],
+        stats=stats,
+        item_features=item_features,
+        uplift_df_path=base / "uplift_estimates.csv"
+            if (base / "uplift_estimates.csv").exists() else None,
+        user2id=user2id,
+        ground_truth_matrix=gt_matrix,
+    )
+
+
+# ============================================================================
+# KuaiRand loader (short-video, random exposure for OPE)
+# ============================================================================
+
+def load_kuairand(data_dir: str = "data/processed_kuairand",
+                  root: Optional[str] = None) -> BanditDataset:
+    """
+    Load KuaiRand short-video dataset processed by ``preprocess_kuairand.py``.
+
+    KuaiRand contains randomly inserted recommendations alongside organic ones,
+    providing a natural treatment/control setting for OPE.  Videos are clustered
+    into K categories; each cluster is one bandit action.
+    """
+    if root is None:
+        root = Path(__file__).resolve().parents[2]
+    base = Path(root) / data_dir
+
+    with open(base / "stats.json") as f:
+        stats = json.load(f)
+
+    n_users = stats["n_user_segments"]
+    n_items = stats["n_items"]  # number of video clusters
+    adj = load_npz(base / "lightgcn_adj.npz")
+    item_features = np.load(base / "item_features.npy")
+
+    with open(base / "user2id.pkl", "rb") as f:
+        user2id = pickle.load(f)
+
+    def _load_split(split_name: str) -> BanditSplit:
+        data = np.load(base / f"context_{split_name}.npz")
+        return BanditSplit(
+            contexts=data["contexts"],
+            actions=data["item_id"],
+            rewards=data["click"],
+            propensities=data["propensity_score"],
+            user_ids=data["user_id"],
+        )
+
+    train = _load_split("train")
+    val   = _load_split("val")
+    test  = _load_split("test")
+
+    return BanditDataset(
+        name="KuaiRand",
+        train=train, val=val, test=test,
+        adj=adj,
+        n_users=n_users,
+        n_items=n_items,
+        n_nodes=n_users + n_items,
+        context_dim=stats["context_dim"],
+        stats=stats,
+        item_features=item_features,
+        uplift_df_path=base / "uplift_estimates.csv"
+            if (base / "uplift_estimates.csv").exists() else None,
+        user2id=user2id,
+    )
+
+
+# ============================================================================
 # Convenience: load by name
 # ============================================================================
 
@@ -206,6 +325,8 @@ def load_dataset(name: str, **kwargs) -> BanditDataset:
     >>> ds = load_dataset("obd-all")
     >>> ds = load_dataset("obd-men")
     >>> ds = load_dataset("criteo")
+    >>> ds = load_dataset("kuairec")
+    >>> ds = load_dataset("kuairand")
     """
     name = name.lower().strip()
     if name.startswith("obd"):
@@ -213,6 +334,11 @@ def load_dataset(name: str, **kwargs) -> BanditDataset:
         return load_obd(campaign=campaign, **kwargs)
     elif name.startswith("criteo"):
         return load_criteo(**kwargs)
+    elif name == "kuairec":
+        return load_kuairec(**kwargs)
+    elif name == "kuairand":
+        return load_kuairand(**kwargs)
     else:
         raise ValueError(f"Unknown dataset: {name!r}. "
-                         f"Choose from: obd-all, obd-men, obd-women, criteo")
+                         f"Choose from: obd-all, obd-men, obd-women, criteo, "
+                         f"kuairec, kuairand")
