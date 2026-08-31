@@ -64,10 +64,21 @@ def download_and_extract(dataset_key: str):
         print(f"  ✓ {dataset_key} data already appears to be extracted at {data_subdir}. Skipping.")
         return
 
-    # Download if archive doesn't exist
-    if not archive_path.exists():
+    # Check if archive exists and is not corrupt/empty (KuaiRand is ~47MB, KuaiRec is ~75MB)
+    min_expected_size = 10 * 1024 * 1024  # 10MB minimum
+    need_download = True
+
+    if archive_path.exists():
+        actual_size = archive_path.stat().st_size
+        if actual_size >= min_expected_size:
+            print(f"  ✓ Archive {archive_path.name} exists and is valid ({actual_size / (1024*1024):.1f} MB).")
+            need_download = False
+        else:
+            print(f"  ⚠️ Existing archive {archive_path.name} is incomplete or corrupt ({actual_size} bytes). Re-downloading...")
+            archive_path.unlink(missing_ok=True)
+
+    if need_download:
         try:
-            # Provide headers to avoid Zenodo blocking automated agents
             req = urllib.request.Request(
                 info["url"],
                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -94,8 +105,6 @@ def download_and_extract(dataset_key: str):
             print(f"  Please download manually from: {info['url']}")
             print(f"  and place it in: {archive_path}")
             return
-    else:
-        print(f"  ✓ Archive {archive_path.name} already exists.")
 
     # Extract
     print(f"  Extracting {archive_path.name} to {target_dir} ...")
@@ -108,6 +117,7 @@ def download_and_extract(dataset_key: str):
                 tar_ref.extractall(target_dir)
         print(f"  ✓ Extraction complete!")
     except Exception as e:
+        print(f"  ❌ Error during extraction: {e}")
         print(f"  ❌ Error during extraction: {e}")
 
 
