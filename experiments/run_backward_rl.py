@@ -9,8 +9,13 @@ to train a Multi-Step Risk-Averse Dynamic BCQ Agent.
 import argparse
 import json
 import os
+import sys
 import time
 from pathlib import Path
+
+# Add project root to path
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import torch

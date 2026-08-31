@@ -211,7 +211,9 @@ class TGNEncoder(nn.Module):
         # Sort chronologically
         sort_idx = np.argsort(timestamps)
         u_sorted = user_ids[sort_idx]
-        i_sorted = item_ids[sort_idx] + (self.n_users if self.n_users > 0 else 0)
+        has_separate_items = (self.n_users > 0 and self.n_nodes > self.n_users)
+        i_offset = self.n_users if has_separate_items else 0
+        i_sorted = item_ids[sort_idx] + i_offset
         t_sorted = timestamps[sort_idx]
 
         # Normalize timestamps to [0, 100] scale
@@ -222,6 +224,8 @@ class TGNEncoder(nn.Module):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=reg)
         N = len(u_sorted)
         print(f"Training TGN on {N:,} temporal events over {epochs} epochs ...")
+
+        neg_low = self.n_users if has_separate_items else 0
 
         for epoch in range(epochs):
             self.train()
@@ -237,7 +241,7 @@ class TGNEncoder(nn.Module):
 
                 # Random negative items for BPR loss
                 neg_dst = torch.randint(
-                    self.n_users if self.n_users > 0 else 0,
+                    neg_low,
                     self.n_nodes,
                     (end - start,),
                     device=self.device,

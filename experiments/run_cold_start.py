@@ -21,6 +21,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "experiments"))
 
 from src.utils.data_loader import load_dataset
 from run_main import (

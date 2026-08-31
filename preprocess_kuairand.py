@@ -31,22 +31,37 @@ RAW_DIR = ROOT / "data" / "kuairand"
 OUT_DIR = ROOT / "data" / "processed_kuairand"
 
 
+def _find_file(base_dir: Path, filename: str) -> Path:
+    """Find a file either directly, in data/, or anywhere recursively in base_dir."""
+    candidates = [
+        base_dir / filename,
+        base_dir / "data" / filename,
+        base_dir / "KuaiRand-Pure" / "data" / filename,
+        base_dir / "KuaiRand-Pure" / filename,
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    # Recursive search
+    matches = list(base_dir.rglob(filename))
+    if matches:
+        return matches[0]
+    raise FileNotFoundError(f"Could not find '{filename}' anywhere inside {base_dir}")
+
+
 def load_raw_data(variant: str = "pure"):
     """Load raw KuaiRand CSV files."""
     print("Loading raw KuaiRand data ...")
-    
-    # Detect data subfolder
-    data_dir = RAW_DIR / "data"
-    if not data_dir.exists():
-        data_dir = RAW_DIR  # fallback: files might be at root
 
     # User features
-    users = pd.read_csv(data_dir / "user_features.csv")
+    users_path = _find_file(RAW_DIR, "user_features.csv")
+    users = pd.read_csv(users_path)
+    print(f"  Found KuaiRand files in: {users_path.parent}")
     print(f"  Users: {len(users):,}")
     
     # Video features
-    basic_path = data_dir / f"video_features_basic_{variant}.csv"
-    stat_path = data_dir / f"video_features_statistic_{variant}.csv"
+    basic_path = _find_file(RAW_DIR, f"video_features_basic_{variant}.csv")
+    stat_path = _find_file(RAW_DIR, f"video_features_statistic_{variant}.csv")
     
     videos_basic = pd.read_csv(basic_path)
     videos_stat = pd.read_csv(stat_path)
@@ -54,22 +69,23 @@ def load_raw_data(variant: str = "pure"):
     print(f"  Videos: {len(videos):,}")
     
     # Interaction logs
-    log_random = pd.read_csv(
-        data_dir / f"log_random_4_22_to_5_08_{variant}.csv"
-    )
+    rand_path = _find_file(RAW_DIR, f"log_random_4_22_to_5_08_{variant}.csv")
+    std_path = _find_file(RAW_DIR, f"log_standard_4_22_to_5_08_{variant}.csv")
+
+    log_random = pd.read_csv(rand_path)
     log_random["is_random"] = 1
     
-    log_standard = pd.read_csv(
-        data_dir / f"log_standard_4_22_to_5_08_{variant}.csv"
-    )
+    log_standard = pd.read_csv(std_path)
     log_standard["is_random"] = 0
     
-    # Also load prior standard logs for training graph
-    prior_path = data_dir / f"log_standard_4_08_to_4_21_{variant}.csv"
-    if prior_path.exists():
+    # Also load prior standard logs if available
+    try:
+        prior_path = _find_file(RAW_DIR, f"log_standard_4_08_to_4_21_{variant}.csv")
         log_prior = pd.read_csv(prior_path)
         log_prior["is_random"] = 0
         log_standard = pd.concat([log_prior, log_standard], ignore_index=True)
+    except FileNotFoundError:
+        pass
     
     print(f"  Random exposure logs: {len(log_random):,}")
     print(f"  Standard logs: {len(log_standard):,}")

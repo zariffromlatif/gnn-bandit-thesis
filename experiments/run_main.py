@@ -202,6 +202,10 @@ def train_graph_encoder(dataset, config, device, seed):
     return model
 
 
+# Backward compatibility alias for ablation / sensitivity scripts
+train_lightgcn = train_graph_encoder
+
+
 def build_states(contexts, user_ids, gcn_model, device):
     """Concatenate context features with GNN user embeddings → full state."""
     user_emb = gcn_model.encode_users(user_ids)   # (N, K)

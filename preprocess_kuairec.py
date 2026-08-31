@@ -30,15 +30,39 @@ RAW_DIR = ROOT / "data" / "kuairec"
 OUT_DIR = ROOT / "data" / "processed_kuairec"
 
 
+def _find_file(base_dir: Path, filename: str) -> Path:
+    """Find a file either directly, in data/, or anywhere recursively in base_dir."""
+    candidates = [
+        base_dir / filename,
+        base_dir / "data" / filename,
+        base_dir / "KuaiRec" / "data" / filename,
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    # Recursive search
+    matches = list(base_dir.rglob(filename))
+    if matches:
+        return matches[0]
+    raise FileNotFoundError(f"Could not find '{filename}' anywhere inside {base_dir}")
+
+
 def load_raw_data():
     """Load raw KuaiRec CSV files."""
     print("Loading raw KuaiRec data ...")
     
-    small = pd.read_csv(RAW_DIR / "data" / "small_matrix.csv")
-    big = pd.read_csv(RAW_DIR / "data" / "big_matrix.csv")
-    users = pd.read_csv(RAW_DIR / "data" / "user_features.csv")
-    items_cat = pd.read_csv(RAW_DIR / "data" / "item_categories.csv")
-    items_daily = pd.read_csv(RAW_DIR / "data" / "item_daily_features.csv")
+    small_path = _find_file(RAW_DIR, "small_matrix.csv")
+    big_path = _find_file(RAW_DIR, "big_matrix.csv")
+    users_path = _find_file(RAW_DIR, "user_features.csv")
+    items_cat_path = _find_file(RAW_DIR, "item_categories.csv")
+    items_daily_path = _find_file(RAW_DIR, "item_daily_features.csv")
+    
+    print(f"  Found files in: {small_path.parent}")
+    small = pd.read_csv(small_path)
+    big = pd.read_csv(big_path)
+    users = pd.read_csv(users_path)
+    items_cat = pd.read_csv(items_cat_path)
+    items_daily = pd.read_csv(items_daily_path)
     
     # Standardize column names (v1 used 'photo_id')
     for df in [small, big]:

@@ -94,9 +94,9 @@ foreach ($ds in $AllDatasets) {
     for ($s = 0; $s -le 4; $s++) {
         $backwardRes = "experiments/results/${ds}_backward_seed${s}/results.json"
         if (Test-Path $backwardRes) {
-            Write-Host "    ✓ Skipping Backward RL for $ds (Seed $s) — already exists." -ForegroundColor DarkGray
+            Write-Host "    [OK] Skipping Backward RL for ${ds} (Seed ${s}) - already exists." -ForegroundColor DarkGray
         } else {
-            Write-Host "    >>> Running Backward RL for $ds (Seed $s)..." -ForegroundColor Green
+            Write-Host "    >>> Running Backward RL for ${ds} (Seed ${s})..." -ForegroundColor Green
             python experiments/run_backward_rl.py --dataset $ds --seed $s
         }
     }
