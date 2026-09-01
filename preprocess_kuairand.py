@@ -31,22 +31,47 @@ RAW_DIR = ROOT / "data" / "kuairand"
 OUT_DIR = ROOT / "data" / "processed_kuairand"
 
 
-def _find_file(base_dir: Path, filename: str) -> Path:
-    """Find a file either directly, in data/, or anywhere recursively in base_dir."""
-    candidates = [
-        base_dir / filename,
-        base_dir / "data" / filename,
-        base_dir / "KuaiRand-Pure" / "data" / filename,
-        base_dir / "KuaiRand-Pure" / filename,
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    # Recursive search
-    matches = list(base_dir.rglob(filename))
-    if matches:
-        return matches[0]
-    raise FileNotFoundError(f"Could not find '{filename}' anywhere inside {base_dir}")
+import tarfile
+
+
+def _ensure_extracted(base_dir: Path):
+    """If archive exists but CSVs are not extracted, extract it."""
+    tar_files = list(base_dir.glob("*.tar.gz"))
+    csv_files = list(base_dir.rglob("*.csv"))
+    if not csv_files and tar_files:
+        print(f"  Extracting {tar_files[0].name} ...")
+        with tarfile.open(tar_files[0], "r:gz") as tar:
+            tar.extractall(base_dir)
+        print(f"  Extraction complete. Found {len(list(base_dir.rglob('*.csv')))} CSV files.")
+
+
+def _find_file(base_dir: Path, *pattern_or_names: str) -> Path:
+    """Find a file matching any candidate filename or glob pattern anywhere inside base_dir."""
+    _ensure_extracted(base_dir)
+    for name in pattern_or_names:
+        candidates = [
+            base_dir / name,
+            base_dir / "data" / name,
+            base_dir / "KuaiRand-Pure" / "data" / name,
+            base_dir / "KuaiRand-Pure" / name,
+        ]
+        for p in candidates:
+            if p.exists():
+                return p
+        matches = list(base_dir.rglob(name))
+        if matches:
+            return matches[0]
+        # Also try glob pattern
+        glob_matches = list(base_dir.rglob(f"*{name}*"))
+        if glob_matches:
+            return glob_matches[0]
+    
+    # If still not found, list all files in directory for clear debugging
+    existing = [str(p.relative_to(base_dir)) for p in base_dir.rglob("*") if p.is_file()]
+    raise FileNotFoundError(
+        f"Could not find any of {pattern_or_names} in {base_dir}.\n"
+        f"Existing files in {base_dir}: {existing}"
+    )
 
 
 def load_raw_data(variant: str = "pure"):
@@ -54,14 +79,14 @@ def load_raw_data(variant: str = "pure"):
     print("Loading raw KuaiRand data ...")
 
     # User features
-    users_path = _find_file(RAW_DIR, "user_features.csv")
+    users_path = _find_file(RAW_DIR, f"user_features_{variant}.csv", "user_features.csv", "user_features")
     users = pd.read_csv(users_path)
     print(f"  Found KuaiRand files in: {users_path.parent}")
     print(f"  Users: {len(users):,}")
     
     # Video features
-    basic_path = _find_file(RAW_DIR, f"video_features_basic_{variant}.csv")
-    stat_path = _find_file(RAW_DIR, f"video_features_statistic_{variant}.csv")
+    basic_path = _find_file(RAW_DIR, f"video_features_basic_{variant}.csv", "video_features_basic")
+    stat_path = _find_file(RAW_DIR, f"video_features_statistic_{variant}.csv", "video_features_statistic")
     
     videos_basic = pd.read_csv(basic_path)
     videos_stat = pd.read_csv(stat_path)
@@ -69,8 +94,8 @@ def load_raw_data(variant: str = "pure"):
     print(f"  Videos: {len(videos):,}")
     
     # Interaction logs
-    rand_path = _find_file(RAW_DIR, f"log_random_4_22_to_5_08_{variant}.csv")
-    std_path = _find_file(RAW_DIR, f"log_standard_4_22_to_5_08_{variant}.csv")
+    rand_path = _find_file(RAW_DIR, f"log_random_4_22_to_5_08_{variant}.csv", "log_random")
+    std_path = _find_file(RAW_DIR, f"log_standard_4_22_to_5_08_{variant}.csv", "log_standard")
 
     log_random = pd.read_csv(rand_path)
     log_random["is_random"] = 1
@@ -80,7 +105,7 @@ def load_raw_data(variant: str = "pure"):
     
     # Also load prior standard logs if available
     try:
-        prior_path = _find_file(RAW_DIR, f"log_standard_4_08_to_4_21_{variant}.csv")
+        prior_path = _find_file(RAW_DIR, f"log_standard_4_08_to_4_21_{variant}.csv", "log_standard_4_08")
         log_prior = pd.read_csv(prior_path)
         log_prior["is_random"] = 0
         log_standard = pd.concat([log_prior, log_standard], ignore_index=True)
@@ -177,33 +202,40 @@ def build_video_clusters(videos_df: pd.DataFrame, n_clusters: int = 50) -> tuple
 def build_interaction_data(log_df: pd.DataFrame, user2id: dict,
                             video2cluster: dict, user_features: np.ndarray,
                             n_clusters: int, is_random: bool = False):
-    """Convert interaction logs into bandit-format data."""
-    records = []
-    for _, row in log_df.iterrows():
-        uid = row['user_id']
-        vid = row['video_id']
-        if uid not in user2id or vid not in video2cluster:
-            continue
-        # Use is_click as primary reward signal
-        reward = float(row.get('is_click', 0))
-        records.append({
-            'user_idx': user2id[uid],
-            'cluster': video2cluster[vid],
-            'reward': reward,
-            'timestamp': row.get('time_ms', 0),
-        })
+    """Convert interaction logs into bandit-format data with fast vectorization."""
+    user_s = log_df['user_id'].map(user2id)
+    video_s = log_df['video_id'].map(video2cluster)
+    valid_mask = user_s.notna() & video_s.notna()
     
-    if not records:
+    if not valid_mask.any():
         raise ValueError("No valid interactions found!")
     
-    df = pd.DataFrame(records)
-    df = df.sort_values('timestamp').reset_index(drop=True)
+    df_valid = log_df[valid_mask].copy()
+    user_idx = user_s[valid_mask].astype(np.int32).values
+    cluster_idx = video_s[valid_mask].astype(np.int32).values
     
-    contexts = user_features[df['user_idx'].values]
-    actions = df['cluster'].values.astype(np.int32)
-    rewards = df['reward'].values.astype(np.float32)
-    user_ids = df['user_idx'].values.astype(np.int32)
-    timestamps = df['timestamp'].values
+    if 'is_click' in df_valid.columns:
+        rewards = df_valid['is_click'].fillna(0).astype(np.float32).values
+    else:
+        rewards = np.zeros(len(df_valid), dtype=np.float32)
+        
+    if 'time_ms' in df_valid.columns:
+        timestamps = df_valid['time_ms'].fillna(0).values
+    elif 'timestamp' in df_valid.columns:
+        timestamps = df_valid['timestamp'].fillna(0).values
+    else:
+        timestamps = np.arange(len(df_valid))
+        
+    # Sort chronologically
+    sort_idx = np.argsort(timestamps)
+    user_idx = user_idx[sort_idx]
+    cluster_idx = cluster_idx[sort_idx]
+    rewards = rewards[sort_idx]
+    timestamps = timestamps[sort_idx]
+    
+    contexts = user_features[user_idx]
+    actions = cluster_idx
+    user_ids = user_idx
     
     # Propensity
     if is_random:
