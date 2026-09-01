@@ -237,20 +237,21 @@ def build_interaction_data(log_df: pd.DataFrame, user2id: dict,
     actions = cluster_idx
     user_ids = user_idx
     
+    N_samples = len(actions)
+    
     # Propensity
     if is_random:
         # Random exposure: uniform over the candidate pool
-        propensities = np.full(len(df), 1.0 / n_clusters, dtype=np.float32)
+        propensities = np.full(N_samples, 1.0 / n_clusters, dtype=np.float32)
     else:
         # Standard logs: estimate propensity from observed action frequencies
         action_counts = Counter(actions)
-        total = len(actions)
-        prop_per_action = {a: max(c / total, 1e-6) for a, c in action_counts.items()}
+        prop_per_action = {a: max(c / N_samples, 1e-6) for a, c in action_counts.items()}
         propensities = np.array([prop_per_action[a] for a in actions], dtype=np.float32)
     
     source = "random" if is_random else "standard"
-    print(f"  [{source}] Interactions: {len(df):,}, users: {df['user_idx'].nunique()}, "
-          f"clusters: {df['cluster'].nunique()}, click_rate: {rewards.mean():.4f}")
+    print(f"  [{source}] Interactions: {N_samples:,}, users: {len(np.unique(user_ids)):,}, "
+          f"clusters: {len(np.unique(actions))}, click_rate: {rewards.mean():.4f}")
     
     return contexts, actions, rewards, propensities, user_ids, timestamps
 
