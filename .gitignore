@@ -1,5 +1,7 @@
-﻿data/
+data/
 __pycache__/
 *.pyc
-experiments/results/
 venv/
+*.zip
+*.tar.gz
+
