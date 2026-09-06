@@ -31,19 +31,20 @@ from run_main import (
 )
 
 
-def run_cold_start(dataset_name: str, seed: int, config: dict, output_dir: str = "experiments/results"):
+def run_cold_start(dataset_name: str, seed: int, config: dict, output_dir: str = "experiments/results", force: bool = False):
     out_dir = Path(ROOT) / output_dir / f"{dataset_name}_seed{seed}"
     result_file = out_dir / "results_cold_start.json"
-    if result_file.exists():
-        print(f"\n{'='*60}\nSkipping Seed {seed} for {dataset_name}: {result_file.name} already exists.\n{'='*60}\n")
+    alt_file = Path(ROOT) / output_dir / dataset_name / f"cold_start_seed{seed}.json"
+    if not force and (result_file.exists() or alt_file.exists()):
+        print(f"\n{'='*60}\nSkipping Seed {seed} for {dataset_name}: results already exist.\n{'='*60}\n")
         return None, None
-    """Run cold-start analysis."""
+
     start_time = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    print(f"\nCOLD-START ANALYSIS — {dataset_name} (seed={seed})")
+    print(f"\nCOLD-START ANALYSIS -- {dataset_name} (seed={seed})")
     print("=" * 60)
 
     dataset = load_dataset(dataset_name, root=str(ROOT))
@@ -58,6 +59,22 @@ def run_cold_start(dataset_name: str, seed: int, config: dict, output_dir: str =
     
     print(f"  Total users:       {dataset.n_users:,}")
     print(f"  Cold-start users:  {len(cold_start_users):,} ({(len(cold_start_users)/dataset.n_users)*100:.1f}%)")
+
+    # ------------------------------------------------------------------
+    # Filter Test Set to Cold-Start Users Only (Check Early)
+    # ------------------------------------------------------------------
+    test = dataset.test
+    mask = np.isin(test.user_ids, cold_start_users)
+    
+    print("\n" + "=" * 60)
+    print("FILTERING TEST SET FOR COLD-START EVALUATION")
+    print("=" * 60)
+    print(f"  Total test samples:       {len(test.user_ids):,}")
+    print(f"  Cold-start test samples:  {mask.sum():,} ({(mask.sum()/len(test.user_ids))*100:.1f}%)")
+    
+    if mask.sum() == 0:
+        print("  WARNING: No cold-start users found in the test set. Exiting.")
+        return None, None
 
     # ------------------------------------------------------------------
     # Train Models (on full training set)
@@ -82,21 +99,8 @@ def run_cold_start(dataset_name: str, seed: int, config: dict, output_dir: str =
     )
 
     # ------------------------------------------------------------------
-    # Filter Test Set to Cold-Start Users Only
+    # Prepare Cold-Start Test Split
     # ------------------------------------------------------------------
-    test = dataset.test
-    mask = np.isin(test.user_ids, cold_start_users)
-    
-    print("\n" + "=" * 60)
-    print("FILTERING TEST SET FOR COLD-START EVALUATION")
-    print("=" * 60)
-    print(f"  Total test samples:       {len(test.user_ids):,}")
-    print(f"  Cold-start test samples:  {mask.sum():,} ({(mask.sum()/len(test.user_ids))*100:.1f}%)")
-    
-    if mask.sum() == 0:
-        print("  WARNING: No cold-start users found in the test set. Exiting.")
-        return
-
     test_cs = copy.copy(test)
     test_cs.contexts = test_cs.contexts[mask]
     test_cs.actions = test_cs.actions[mask]
@@ -122,21 +126,40 @@ def run_cold_start(dataset_name: str, seed: int, config: dict, output_dir: str =
     # ------------------------------------------------------------------
     # Save Results
     # ------------------------------------------------------------------
-    out_dir = Path(ROOT) / output_dir / f"{dataset_name}_seed{seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "results_cold_start.json"
+    alt_dir = Path(ROOT) / output_dir / dataset_name
+    alt_dir.mkdir(parents=True, exist_ok=True)
 
     json_ready = {}
     for pol_name, metrics in results.items():
         json_ready[pol_name] = {
-            k: {"value": v.value, "ci_lower": v.ci_lower, "ci_upper": v.ci_upper}
+            k: (
+                v if isinstance(v, dict) else {
+                    "value": v.value,
+                    "std": getattr(v, "std", 0.0),
+                    "ci_lower": v.ci_lower,
+                    "ci_upper": v.ci_upper,
+                    "n": getattr(v, "n", 0),
+                }
+            )
             for k, v in metrics.items()
         }
 
-    with open(out_path, "w") as f:
+    with open(result_file, "w") as f:
         json.dump(json_ready, f, indent=2)
 
-    print(f"\nSaved cold-start results to: {out_path}")
+    with open(alt_file, "w") as f:
+        json.dump(json_ready, f, indent=2)
+
+    import gc
+    del gcn_model, reward_model, cate_model, agent, baselines
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    print(f"\nSaved cold-start results to:")
+    print(f"  1) {result_file}")
+    print(f"  2) {alt_file}")
     print(f"Total time: {(time.time() - start_time) / 60:.1f} min")
 
 
@@ -144,7 +167,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GNN-Bandit cold-start analysis")
     parser.add_argument(
         "--dataset", type=str, default="obd-all",
-        choices=["obd-all", "obd-men", "obd-women", "criteo", "all"],
+        choices=["obd-all", "obd-men", "obd-women", "criteo", "kuairec", "kuairand", "all", "all-extended"],
         help="Dataset to evaluate on. (default: obd-all)"
     )
     parser.add_argument(
@@ -155,11 +178,20 @@ if __name__ == "__main__":
         "--output", type=str, default="experiments/results",
         help="Output directory for results. (default: experiments/results)"
     )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Force re-run even if results already exist."
+    )
     args = parser.parse_args()
 
     seeds = [int(s.strip()) for s in args.seeds.split(",")]
-    datasets = ["obd-all", "obd-men", "obd-women"] if args.dataset == "all" else [args.dataset]
+    if args.dataset == "all":
+        datasets = ["obd-all", "obd-men", "obd-women", "criteo"]
+    elif args.dataset == "all-extended":
+        datasets = ["obd-all", "obd-men", "obd-women", "criteo", "kuairec", "kuairand"]
+    else:
+        datasets = [args.dataset]
 
     for ds in datasets:
         for s in seeds:
-            run_cold_start(ds, s, DEFAULT_CONFIG, args.output)
+            run_cold_start(ds, s, DEFAULT_CONFIG, args.output, force=args.force)

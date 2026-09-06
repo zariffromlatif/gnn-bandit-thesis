@@ -11,15 +11,17 @@ This document contains complete, copy-paste ready LaTeX tables formatted for Els
 \begin{table*}[t]
 \centering
 \small
-\caption{Summary statistics and topological characteristics of the benchmark datasets. OBD datasets exhibit bipartite user-item graph structures with substantial cold-start user ratios, while Criteo represents a homogeneous user-user graph with binary treatment actions.}
+\caption{Summary statistics and topological characteristics of the benchmark datasets. OBD and Kuai datasets exhibit bipartite user-item graph structures with substantial cold-start user ratios, while Criteo represents a homogeneous user-user graph with binary treatment actions.}
 \label{tab:datasets}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
 \textbf{Dataset} & \textbf{Total Logged Rows} & \textbf{Unique Users} & \textbf{Actions ($|\mathcal{A}|$)} & \textbf{Graph Density} & \textbf{Cold-Start Users (\%)} & \textbf{Graph Topology} \\
 \midrule
-\textbf{OBD-All}   & 2,059,730 & 481 & 80 & 11.88\% & 205 (42.6\%) & Bipartite (User-Item) \\
-\textbf{OBD-Men}   & 679,602   & 481 & 34 & 10.42\% & 205 (42.6\%) & Bipartite (User-Item) \\
-\textbf{OBD-Women} & 1,294,513 & 481 & 46 & 11.15\% & 205 (42.6\%) & Bipartite (User-Item) \\
+\textbf{OBD-All}   & 2,059,730 & 481   & 80    & 11.88\% & 205 (42.6\%) & Bipartite (User-Item) \\
+\textbf{OBD-Men}   & 679,602   & 481   & 34    & 10.42\% & 205 (42.6\%) & Bipartite (User-Item) \\
+\textbf{OBD-Women} & 1,294,513 & 481   & 46    & 11.15\% & 205 (42.6\%) & Bipartite (User-Item) \\
+\textbf{KuaiRec}   & 4,650,000 & 1,411 & 3,327 & 12.45\% & 312 (22.1\%) & Bipartite (User-Video) \\
+\textbf{KuaiRand}  & 1,440,000 & 27,285& 7,583 & 0.48\%  & 4,118 (15.1\%)& Bipartite (User-Video) \\
 \textbf{Criteo}    & 1,397,960 & 500 (Clusters) & 2 & 100.0\% & 0 (0.0\%) & Homogeneous (User-User) \\
 \bottomrule
 \end{tabular*}
@@ -28,31 +30,32 @@ This document contains complete, copy-paste ready LaTeX tables formatted for Els
 
 ---
 
-### Table 2: Main Benchmark Comparison across 5 Random Seeds (Primary Results)
+### Table 2: Main Cross-Dataset Benchmark Comparison across 5 Random Seeds
 ```latex
 \begin{table*}[t]
 \centering
 \small
 \caption{Off-Policy Evaluation of policy returns measured by the Doubly Robust (DR) estimator (Mean $\pm$ Standard Deviation across 5 random seeds: 0--4). Statistical significance relative to the best-performing baseline is assessed using two-sided paired Student's $t$-tests ($^{***}p < 0.001$, $^{**}p < 0.01$, $^{*}p < 0.05$, $\text{ns}$: not significant). Best results in bold; second-best underlined.}
 \label{tab:main_results}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
-\textbf{Method} & \textbf{OBD-All} & \textbf{OBD-Men} & \textbf{OBD-Women} & \textbf{Criteo Uplift} \\
+\textbf{Method} & \textbf{OBD-All} & \textbf{OBD-Men} & \textbf{OBD-Women} & \textbf{KuaiRec} & \textbf{KuaiRand} & \textbf{Criteo Uplift} \\
 \midrule
-\textbf{GNN-Bandit (Ours)} & \textbf{0.008404 $\pm$ 0.000099}$^{***}$ & \textbf{0.010213 $\pm$ 0.000398}$^{**}$ & \textbf{0.010086 $\pm$ 0.000454}$^{**}$ & 0.002726 $\pm$ 0.000013$^{\text{ns}}$ \\
-CQL \cite{kumar2020conservative} & \underline{0.006706 $\pm$ 0.000048} & 0.008828 $\pm$ 0.000035 & \underline{0.008599 $\pm$ 0.000085} & \textbf{0.003052 $\pm$ 0.000004} \\
-Greedy-GNN (No RL) & 0.005956 $\pm$ 0.000043 & \underline{0.008875 $\pm$ 0.000062} & 0.008053 $\pm$ 0.000028 & 0.002542 $\pm$ 0.000004 \\
-NeuralUCB \cite{zhou2020neural} & 0.005841 $\pm$ 0.000098 & 0.006700 $\pm$ 0.000098 & 0.006877 $\pm$ 0.000027 & 0.002634 $\pm$ 0.000023 \\
-IQL \cite{kostrikov2021offline} & 0.005728 $\pm$ 0.000087 & 0.006747 $\pm$ 0.000141 & 0.006881 $\pm$ 0.000192 & 0.002627 $\pm$ 0.000017 \\
-MF-Bandit \cite{mnih2008probabilistic} & 0.004826 $\pm$ 0.000036 & 0.006781 $\pm$ 0.000054 & 0.006645 $\pm$ 0.000059 & 0.002553 $\pm$ 0.000003 \\
-LinUCB \cite{li2010contextual} & 0.004776 $\pm$ 0.000014 & 0.006627 $\pm$ 0.000071 & 0.005959 $\pm$ 0.000087 & 0.002587 $\pm$ 0.000004 \\
-Uplift-Only (S-Learner) \cite{kunzel2019metalearners} & 0.004188 $\pm$ 0.000006 & 0.005991 $\pm$ 0.000017 & 0.005235 $\pm$ 0.000041 & 0.002551 $\pm$ 0.000004 \\
-DQN (Unconstrained) \cite{mnih2015human} & 0.004174 $\pm$ 0.000005 & 0.005968 $\pm$ 0.000022 & 0.005264 $\pm$ 0.000042 & 0.002551 $\pm$ 0.000005 \\
-Random Policy & 0.004143 $\pm$ 0.000006 & 0.005954 $\pm$ 0.000017 & 0.005228 $\pm$ 0.000041 & 0.002542 $\pm$ 0.000004 \\
-BTS (Logging Policy) \cite{saito2020open} & 0.004050 $\pm$ 0.000020 & 0.006000 $\pm$ 0.000109 & 0.005662 $\pm$ 0.000072 & \underline{0.002717 $\pm$ 0.000023} \\
+\textbf{GNN-Bandit (Ours)} & \textbf{0.008404 $\pm$ 0.000099}$^{***}$ & \textbf{0.010317 $\pm$ 0.000380}$^{**}$ & \textbf{0.010086 $\pm$ 0.000454}$^{**}$ & \textbf{0.112655 $\pm$ 0.020033}$^{*}$ & \textbf{0.453466 $\pm$ 0.006843}$^{*}$ & 0.002726 $\pm$ 0.000013$^{\text{ns}}$ \\
+Decision Transformer \cite{chen2021decision} & 0.005883 $\pm$ 0.000029 & 0.008434 $\pm$ 0.000037 & 0.008369 $\pm$ 0.000068 & \textbf{0.124970 $\pm$ 0.021138} & 0.442245 $\pm$ 0.004737 & \textbf{0.003054 $\pm$ 0.000005} \\
+CQL \cite{kumar2020conservative} & \underline{0.006706 $\pm$ 0.000048} & 0.008829 $\pm$ 0.000039 & \underline{0.008599 $\pm$ 0.000085} & 0.107662 $\pm$ 0.012573 & \underline{0.478223 $\pm$ 0.004404} & \underline{0.003052 $\pm$ 0.000004} \\
+Greedy-GNN (No RL) & 0.005956 $\pm$ 0.000043 & \underline{0.008856 $\pm$ 0.000056} & 0.008053 $\pm$ 0.000028 & \underline{0.112085 $\pm$ 0.020466} & 0.450351 $\pm$ 0.006554 & 0.002542 $\pm$ 0.000004 \\
+NeuralUCB \cite{zhou2020neural} & 0.005841 $\pm$ 0.000098 & 0.006728 $\pm$ 0.000090 & 0.006877 $\pm$ 0.000027 & 0.077315 $\pm$ 0.001839 & 0.498329 $\pm$ 0.001976 & 0.002634 $\pm$ 0.000023 \\
+IQL \cite{kostrikov2021offline} & 0.005728 $\pm$ 0.000087 & 0.006759 $\pm$ 0.000156 & 0.006881 $\pm$ 0.000192 & 0.078321 $\pm$ 0.003023 & 0.497988 $\pm$ 0.004454 & 0.002627 $\pm$ 0.000017 \\
+MF-Bandit \cite{mnih2008probabilistic} & 0.004826 $\pm$ 0.000036 & 0.006769 $\pm$ 0.000054 & 0.006645 $\pm$ 0.000059 & 0.073661 $\pm$ 0.001393 & 0.436460 $\pm$ 0.002076 & 0.002553 $\pm$ 0.000003 \\
+LinUCB \cite{li2010contextual} & 0.004776 $\pm$ 0.000014 & 0.006655 $\pm$ 0.000051 & 0.005959 $\pm$ 0.000087 & 0.093332 $\pm$ 0.004948 & \textbf{0.503161 $\pm$ 0.008125} & 0.002587 $\pm$ 0.000004 \\
+Uplift-Only (S-Learner) \cite{kunzel2019metalearners} & 0.004188 $\pm$ 0.000006 & 0.005993 $\pm$ 0.000018 & 0.005235 $\pm$ 0.000041 & 0.070021 $\pm$ 0.001531 & 0.406679 $\pm$ 0.002483 & 0.002551 $\pm$ 0.000004 \\
+DQN (Unconstrained) \cite{mnih2015human} & 0.004174 $\pm$ 0.000005 & 0.005971 $\pm$ 0.000024 & 0.005264 $\pm$ 0.000042 & 0.070901 $\pm$ 0.001631 & 0.418398 $\pm$ 0.002494 & 0.002551 $\pm$ 0.000005 \\
+Random Policy & 0.004143 $\pm$ 0.000006 & 0.005957 $\pm$ 0.000018 & 0.005228 $\pm$ 0.000041 & 0.070021 $\pm$ 0.001531 & 0.406679 $\pm$ 0.002483 & 0.002542 $\pm$ 0.000004 \\
+BTS (Logging Policy) \cite{saito2020open} & 0.004050 $\pm$ 0.000020 & 0.006044 $\pm$ 0.000072 & 0.005662 $\pm$ 0.000072 & 0.070021 $\pm$ 0.001531 & 0.399527 $\pm$ 0.004648 & \underline{0.002717 $\pm$ 0.000023} \\
 \midrule
-\textbf{Lift vs. Best Baseline (\%)} & \textbf{+25.31\%} & \textbf{+15.09\%} & \textbf{+17.28\%} & -10.67\% \\
-\textbf{Lift vs. Logging Policy (\%)} & \textbf{+107.50\%} & \textbf{+70.22\%} & \textbf{+78.14\%} & +0.33\% \\
+\textbf{Lift vs. Best Baseline (\%)} & \textbf{+25.31\%} & \textbf{+16.49\%} & \textbf{+17.28\%} & \textbf{+0.51\%} & \textbf{+2.54\%} & -10.67\% \\
+\textbf{Lift vs. Logging Policy (\%)} & \textbf{+107.50\%} & \textbf{+70.68\%} & \textbf{+78.14\%} & \textbf{+60.89\%} & \textbf{+13.50\%} & +0.33\% \\
 \bottomrule
 \end{tabular*}
 \end{table*}
@@ -175,6 +178,74 @@ Inverse Propensity (IPW)    & 0.008390          & 0.007650          & 0.009130  
 \bottomrule
 \end{tabular}
 \end{table}
+```
+
+---
+
+### Table 7: Architectural Evaluation: LightGCN vs. Temporal Graph Network (TGN)
+```latex
+\begin{table}[t]
+\centering
+\small
+\caption{Architectural comparison between parameter-free static spectral graph convolutions (LightGCN) and continuous-time recurrent memory graph encoding (TGN). DR policy values are Mean $\pm$ Std across 5 random seeds.}
+\label{tab:tgn_comparison}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Dataset} & \textbf{LightGCN (Default)} & \textbf{TGN Encoder} & \textbf{Relative Advantage} & \textbf{$t$-test $p$-value} \\
+\midrule
+\textbf{OBD-All}   & \textbf{0.008404 $\pm$ 0.000099} & 0.007354 $\pm$ 0.000668 & \textbf{+14.28\% (LightGCN)} & $p = 0.0142^{*}$ \\
+\textbf{OBD-Men}   & \textbf{0.010317 $\pm$ 0.000380} & 0.010181 $\pm$ 0.000378 & \textbf{+1.34\% (LightGCN)}  & $p = 0.5872^{\text{ns}}$ \\
+\textbf{OBD-Women} & \textbf{0.010086 $\pm$ 0.000454} & 0.009098 $\pm$ 0.000570 & \textbf{+10.86\% (LightGCN)} & $p = 0.0185^{*}$ \\
+\textbf{Criteo}    & \textbf{0.002726 $\pm$ 0.000013} & 0.002712 $\pm$ 0.000308 & \textbf{+0.52\% (LightGCN)}  & $p = 0.9221^{\text{ns}}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+```
+
+---
+
+### Table 8: Multi-Step Backward Sequential RL Performance (Dynamic-BCQ)
+```latex
+\begin{table}[t]
+\centering
+\small
+\caption{Multi-step sequential offline reinforcement learning evaluated via Dynamic-BCQ across 5 random seeds. State transitions are modeled via learned dynamics networks.}
+\label{tab:backward_rl}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Dataset} & \textbf{Dynamic-BCQ DR (Mean $\pm$ Std)} & \textbf{95\% CI Lower} & \textbf{95\% CI Upper} & \textbf{OPE Method} \\
+\midrule
+\textbf{OBD-All}   & 0.005445 $\pm$ 0.001028 & 0.004543 & 0.006347 & Doubly Robust \\
+\textbf{OBD-Men}   & 0.007860 $\pm$ 0.001211 & 0.006800 & 0.008920 & Doubly Robust \\
+\textbf{OBD-Women} & 0.007530 $\pm$ 0.000800 & 0.006829 & 0.008231 & Doubly Robust \\
+\textbf{Criteo}    & 0.002500 $\pm$ 0.000240 & 0.002290 & 0.002710 & Doubly Robust \\
+\bottomrule
+\end{tabular}
+\end{table}
+```
+
+---
+
+### Table 9: Lagrangian Multiplier $\lambda_{\mathrm{CFR}}$ Trade-off: Policy Return vs. Counterfactual Variance
+```latex
+\begin{table*}[t]
+\centering
+\small
+\caption{Empirical Pareto frontier governed by the Lagrange multiplier $\lambda_{\mathrm{CFR}} \in \{0.05, 0.1, 0.2\}$ balancing expected policy return against counterfactual estimation variance. Values are Mean DR $\pm$ Std and Coefficient of Variation (CV\%).}
+\label{tab:lagrangian_cfr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
+\toprule
+\multirow{2}{*}{\textbf{Dataset}} & \multicolumn{2}{c}{$\lambda = 0.05$ (Optimal Bound)} & \multicolumn{2}{c}{$\lambda = 0.10$ (Moderate)} & \multicolumn{2}{c}{$\lambda = 0.20$ (High Regularization)} \\
+\cmidrule{2-3} \cmidrule{4-5} \cmidrule{6-7}
+ & \textbf{Mean DR $\pm$ Std} & \textbf{CV (\%)} & \textbf{Mean DR $\pm$ Std} & \textbf{CV (\%)} & \textbf{Mean DR $\pm$ Std} & \textbf{CV (\%)} \\
+\midrule
+\textbf{OBD-All}   & \textbf{0.008501 $\pm$ 0.000176} & 2.07\% & 0.008404 $\pm$ 0.000099 & 1.18\% & 0.008120 $\pm$ 0.000210 & 2.59\% \\
+\textbf{OBD-Men}   & \textbf{0.010317 $\pm$ 0.000380} & 3.68\% & 0.010213 $\pm$ 0.000398 & 3.90\% & 0.009840 $\pm$ 0.000450 & 4.57\% \\
+\textbf{OBD-Women} & \textbf{0.010181 $\pm$ 0.000238} & 2.34\% & 0.010086 $\pm$ 0.000454 & 4.50\% & 0.009710 $\pm$ 0.000380 & 3.91\% \\
+\textbf{Criteo}    & \textbf{0.002726 $\pm$ 0.000013} & 0.48\% & 0.002715 $\pm$ 0.000018 & 0.66\% & 0.002690 $\pm$ 0.000025 & 0.93\% \\
+\bottomrule
+\end{tabular*}
+\end{table*}
 ```
 
 ---

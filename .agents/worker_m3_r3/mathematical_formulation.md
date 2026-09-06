@@ -192,7 +192,54 @@ When the reward model $\hat{r}(x, a)$ is accurate, the third variance term appro
 
 ---
 
-## 6. End-to-End GNN-Bandit Algorithmic Flowchart
+---
+
+## 6. Lagrangian Duality, Constrained Policy Optimization, and Budgeted Interventions
+
+### 6.1 Constrained Offline Policy Optimization & Lagrangian Duality
+In high-stakes retention regimes, the target policy $\pi$ must maximize expected counterfactual utility while remaining strictly bounded within the support of the historical logging policy $\pi_0$ to prevent catastrophic out-of-distribution (OOD) extrapolation errors. Formally, this is posed as a constrained optimization problem:
+$$\max_{\pi \in \Pi} \; J(\pi) = \mathbb{E}_{x \sim \mathcal{P}, a \sim \pi(\cdot \mid x)} \left[ Q(x, a) \right] \quad \text{subject to} \quad \mathbb{E}_{x \sim \mathcal{P}} \left[ D_{\mathrm{KL}}\Big( \pi(\cdot \mid x) \;\big\|\; \pi_0(\cdot \mid x) \Big) \right] \le \epsilon$$
+where $D_{\mathrm{KL}}(\cdot \,\|\, \cdot)$ denotes Kullback-Leibler divergence and $\epsilon > 0$ defines the trust region radius.
+
+**The Lagrangian Dual**: Introducing the Lagrange multiplier $\lambda \ge 0$, the unconstrained minimax objective is:
+$$\max_{\pi \in \Pi} \min_{\lambda \ge 0} \; \mathcal{L}(\pi, \lambda) = \mathbb{E}_{x} \left[ \sum_{a \in \mathcal{A}} \pi(a \mid x) Q(x, a) \right] - \lambda \left( \mathbb{E}_{x} \left[ \sum_{a \in \mathcal{A}} \pi(a \mid x) \log \frac{\pi(a \mid x)}{\pi_0(a \mid x)} \right] - \epsilon \right)$$
+
+Under strong duality, the closed-form primal solution for a fixed multiplier $\lambda > 0$ is the regularized Gibbs policy:
+$$\pi^*(a \mid x) \propto \pi_0(a \mid x) \cdot \exp\left( \frac{Q(x, a)}{\lambda} \right)$$
+- **Connection to BCQ (Infinite Penalty Limit)**: Batch-Constrained Q-learning (BCQ) implements the extreme non-parametric projection: actions with insufficient behavioral coverage ($\pi_0(a \mid x) < \tau$) are assigned an infinite Lagrangian penalty ($\lambda \to \infty$), zeroing their probability mass and enforcing an absolute barrier against OOD extrapolation.
+
+---
+
+### 6.2 Real-World Budget-Constrained Retention (Bandits with Knapsacks)
+In enterprise customer retention, marketing interventions (e.g., retention incentives, discount coupons, proactive customer care) incur direct operational costs $c(x, a) \ge 0$. Under an aggregate enterprise budget $B > 0$, the decision problem becomes a Constrained Contextual Bandit:
+$$\max_{\pi} \; \sum_{i=1}^N \mathbb{E}\left[ r(x_i, \pi(x_i)) \right] \quad \text{subject to} \quad \sum_{i=1}^N c(x_i, \pi(x_i)) \le B$$
+
+Applying Lagrangian relaxation to the global knapsack constraint:
+$$\max_{\pi} \min_{\lambda_{\mathrm{cost}} \ge 0} \; \mathcal{L}_{\mathrm{budget}}(\pi, \lambda_{\mathrm{cost}}) = \sum_{i=1}^N \left( \mathbb{E}\left[ r(x_i, \pi(x_i)) \right] - \lambda_{\mathrm{cost}} \cdot c(x_i, \pi(x_i)) \right) + \lambda_{\mathrm{cost}} B$$
+where $\lambda_{\mathrm{cost}} \ge 0$ represents the **shadow price of retention expenditure**:
+- When the budget is abundant ($B \gg 0$), $\lambda_{\mathrm{cost}} \to 0$, prioritizing unconstrained conversion.
+- Under strict capital constraints, $\lambda_{\mathrm{cost}}$ rises dynamically, requiring the policy to intervene only on customers whose expected marginal uplift-to-cost ratio exceeds the shadow price:
+  $$\frac{\tau_{\mathrm{CATE}}(x, a)}{c(x, a)} \ge \lambda_{\mathrm{cost}}$$
+
+---
+
+### 6.3 Counterfactual Risk Regularization as a Lagrangian Multiplier
+In Counterfactual Risk Minimization (CRM) and CFR-GNN, the agent balances empirical policy return against estimation variance:
+$$\max_{\pi} \; \hat{V}_{\mathrm{DR}}(\pi) \quad \text{subject to} \quad \sqrt{\frac{\mathbb{V}(\hat{V}_{\mathrm{DR}}(\pi))}{N}} \le \sigma_{\max}$$
+The Lagrangian relaxation transforms this directly into our parameterized objective:
+$$\max_{\pi} \; \mathcal{L}_{\mathrm{CFR}}(\pi, \lambda_{\mathrm{CFR}}) = \hat{V}_{\mathrm{DR}}(\pi) - \lambda_{\mathrm{CFR}} \cdot \mathcal{R}_{\mathrm{CFR}}(\pi)$$
+where $\lambda_{\mathrm{CFR}} \in \{0.05, 0.1, 0.2\}$ acts as the dual regularization parameter governing the Pareto frontier between empirical return and counterfactual distribution divergence.
+
+---
+
+### 6.4 Variational Lagrangian Dual of Conditional Value-at-Risk (CVaR)
+The rock-solid theoretical grounding of our quantile risk objective rests on the Rockafellar-Uryasev (2000) variational theorem, derived directly from the Lagrangian dual of quantile exceedance:
+$$\text{CVaR}_\alpha(Z) = \min_{v \in \mathbb{R}} \left\{ v + \frac{1}{\alpha} \mathbb{E}\left[ \max(0, -Z - v) \right] \right\}$$
+where $v \in \mathbb{R}$ represents the Value-at-Risk ($\text{VaR}_\alpha$), which acts as the optimal Lagrange multiplier enforcing the $\alpha$-quantile cumulative density constraint.
+
+---
+
+## 7. End-to-End GNN-Bandit Algorithmic Flowchart
 
 ```
 [ Bipartite Graph G = (U, I, E) ]
