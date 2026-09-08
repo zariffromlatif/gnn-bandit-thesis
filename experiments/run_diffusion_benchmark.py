@@ -184,10 +184,12 @@ def run_diffusion_experiment(
         res = evaluate_policy(
             probs, test_rewards, test.propensities, test.actions, dataset.n_items, rm_preds, label=name
         )
+        snip_val = (res.get("SNIPW") or res.get("SNIPS")).value
         ope_results[name] = {
             "DR": res["DR"].value,
-            "SNIPS": res["SNIPS"].value,
+            "SNIPS": snip_val,
             "DM": res["DM"].value,
+            "IPW": res["IPW"].value,
             "latency_per_sample_us": per_sample_latency_us,
         }
 
