@@ -285,7 +285,9 @@ def train_cate_model(dataset, states_train, config, device):
 
     # Print segmentation summary
     seg = cate.segment_users(
-        states_train, dataset.train.user_ids)
+        states_train, dataset.train.user_ids,
+        baseline_responses=dataset.train.rewards.astype(np.float32),
+    )
     print(f"  User segments: {seg['segment_counts']}")
 
     return cate

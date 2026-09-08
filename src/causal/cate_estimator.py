@@ -143,12 +143,13 @@ class CATEEstimator:
         batch_size: int = 16384,
         cfr_lambda: float = 0.1,
         verbose: bool = True,
+        observed_mask: Optional[np.ndarray] = None,
     ):
         """
         Train the CATE network to predict uplift values from states.
 
         The uplift table contains precomputed treatment effects from the
-        randomised data.  We train the neural network to generalise these
+        randomised data. We train the neural network to generalise these
         estimates to unseen states using GNN-augmented features.
 
         Parameters
@@ -161,9 +162,20 @@ class CATEEstimator:
         batch_size : mini-batch size.
         cfr_lambda: strength of counterfactual regularisation.
         verbose : print training progress.
+        observed_mask: optional (n_users, n_actions) boolean mask of observed entries.
         """
         # Build per-sample uplift targets
         targets = uplift_table[user_ids]  # (N, n_actions)
+
+        # Build mask for sparse uplift tables to avoid zero-collapse
+        if observed_mask is None and (uplift_table != 0.0).sum() < 0.3 * uplift_table.size:
+            observed_mask = (uplift_table != 0.0)
+
+        if observed_mask is not None:
+            mask_per_sample = observed_mask[user_ids]
+            M = torch.as_tensor(mask_per_sample, dtype=torch.bool, device=self.device)
+        else:
+            M = None
 
         S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
         T = torch.as_tensor(targets, dtype=torch.float32, device=self.device)
@@ -193,7 +205,14 @@ class CATEEstimator:
                 s_batch, t_batch, a_batch = S[idx], T[idx], A[idx]
                 
                 pred_uplift, pred_treatment = self.model(s_batch, alpha=current_alpha)
-                loss_uplift = F.mse_loss(pred_uplift, t_batch)
+                if M is not None:
+                    m_batch = M[idx]
+                    if m_batch.any():
+                        loss_uplift = F.mse_loss(pred_uplift[m_batch], t_batch[m_batch])
+                    else:
+                        loss_uplift = F.mse_loss(pred_uplift, t_batch)
+                else:
+                    loss_uplift = F.mse_loss(pred_uplift, t_batch)
                 loss_treatment = F.cross_entropy(pred_treatment, a_batch)
                 
                 loss = loss_uplift + loss_treatment
@@ -221,10 +240,10 @@ class CATEEstimator:
         """
         Train CATE directly from (state, action, reward) tuples.
 
-        Uses a pseudo-uplift approach: for each sample, the target is
-        reward(a) - mean_reward(other actions).  This is noisier than
-        the uplift table approach but works when no precomputed table
-        is available (e.g. Criteo dataset).
+        Uses a residualized outcome formulation: for each sample, the target is
+        reward(a) - global_mean. We compute MSE loss ONLY on the taken action,
+        preventing unobserved counterfactual actions from being artificially
+        forced to negative values.
 
         Parameters
         ----------
@@ -233,27 +252,11 @@ class CATEEstimator:
         rewards : (N,) observed rewards.
         cfr_lambda : strength of counterfactual regularisation.
         """
-        # Compute per-action mean reward as a baseline
-        action_mean_reward = np.zeros(self.n_actions, dtype=np.float32)
-        action_counts = np.zeros(self.n_actions, dtype=np.float32)
-        for a, r in zip(actions, rewards):
-            action_mean_reward[a] += r
-            action_counts[a] += 1
-        nonzero = action_counts > 0
-        action_mean_reward[nonzero] /= action_counts[nonzero]
-        global_mean = rewards.mean()
-
-        # Build pseudo-uplift targets: (N, n_actions)
-        targets = np.full((len(states), self.n_actions),
-                          -global_mean, dtype=np.float32)
-        for i in range(len(states)):
-            a = actions[i]
-            r = rewards[i]
-            # For the taken action: observed reward - global mean
-            targets[i, a] = r - global_mean
+        global_mean = float(rewards.mean())
+        residuals = (rewards - global_mean).astype(np.float32)
 
         S = torch.as_tensor(states, dtype=torch.float32, device=self.device)
-        T = torch.as_tensor(targets, dtype=torch.float32, device=self.device)
+        R = torch.as_tensor(residuals, dtype=torch.float32, device=self.device)
         A = torch.as_tensor(actions, dtype=torch.long, device=self.device)
 
         if verbose:
@@ -274,10 +277,12 @@ class CATEEstimator:
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
                 idx = indices[start:end]
-                s_batch, t_batch, a_batch = S[idx], T[idx], A[idx]
+                s_batch, r_batch, a_batch = S[idx], R[idx], A[idx]
                 
                 pred_uplift, pred_treatment = self.model(s_batch, alpha=current_alpha)
-                loss_uplift = F.mse_loss(pred_uplift, t_batch)
+                # Compute uplift loss ONLY on the taken action
+                pred_taken = pred_uplift.gather(1, a_batch.unsqueeze(1)).squeeze(1)
+                loss_uplift = F.mse_loss(pred_taken, r_batch)
                 loss_treatment = F.cross_entropy(pred_treatment, a_batch)
                 
                 loss = loss_uplift + loss_treatment
@@ -318,46 +323,121 @@ class CATEEstimator:
         self,
         states: np.ndarray,
         user_ids: np.ndarray,
+        baseline_responses: Optional[np.ndarray] = None,
+        treatment_arm: Optional[int] = None,
+        control_arm: Optional[int] = None,
         uplift_threshold: float = 0.0,
+        response_threshold: Optional[float] = None,
+        aggregation: str = "max",
     ) -> dict:
         """
-        Segment users into uplift quadrants based on predicted CATE.
+        Segment users into the 4 causal uplift quadrants based on predicted CATE.
+
+        Quadrants:
+            0 = Persuadable  (low baseline, positive uplift)  → INTERVENE
+            1 = Sure Thing    (high baseline, positive uplift) → ORGANIC CONVERT
+            2 = Lost Cause    (low baseline, negative uplift)  → INEFFECTIVE
+            3 = Sleeping Dog  (high baseline, negative uplift) → DO NOT TOUCH
+
+        Parameters
+        ----------
+        states : (N, D) state vectors
+        user_ids : (N,) user identifiers
+        baseline_responses : Optional (N,) observed baseline response probabilities / rewards
+        treatment_arm : Optional specific treatment action index to evaluate
+        control_arm : Optional control action index to compute relative treatment effect (e.g. 0)
+        uplift_threshold : cutoff for positive/negative uplift (default 0.0)
+        response_threshold : cutoff for high/low baseline (if None, adaptive median/mean)
+        aggregation : "max" for max potential uplift, or "mean" for average arm uplift
 
         Returns
         -------
         segments : dict with keys:
-            'user_segments' : (n_unique_users,) array of segment labels
-            'segment_counts' : dict mapping segment name to count
+            'user_segments' : (n_unique_users,) array of quadrant IDs (0, 1, 2, 3)
+            'segment_counts' : dict mapping segment names to count
             'per_sample_cate' : (N, n_actions) predicted CATE scores
+            'response_threshold' : float value used
         """
         cate_scores = self.predict(states)
-        mean_cate = cate_scores.mean(axis=1)  # (N,)
+        if treatment_arm is not None:
+            if control_arm is not None:
+                sample_uplift = cate_scores[:, treatment_arm] - cate_scores[:, control_arm]
+            else:
+                sample_uplift = cate_scores[:, treatment_arm]
+        else:
+            if control_arm is not None:
+                rel_cate = cate_scores - cate_scores[:, [control_arm]]
+            else:
+                rel_cate = cate_scores
 
-        # Per-user aggregation
+            if aggregation == "max":
+                sample_uplift = rel_cate.max(axis=1)
+            elif aggregation == "mean":
+                sample_uplift = rel_cate.mean(axis=1)
+            else:
+                sample_uplift = rel_cate.max(axis=1)
+
         unique_users = np.unique(user_ids)
-        user_mean_cate = np.zeros(unique_users.max() + 1, dtype=np.float32)
-        user_counts = np.zeros(unique_users.max() + 1, dtype=np.float32)
+        max_uid = int(unique_users.max())
+        user_uplift = np.zeros(max_uid + 1, dtype=np.float32)
+        user_counts = np.zeros(max_uid + 1, dtype=np.float32)
+
         for i, uid in enumerate(user_ids):
-            user_mean_cate[uid] += mean_cate[i]
-            user_counts[uid] += 1
+            user_uplift[uid] += sample_uplift[i]
+            user_counts[uid] += 1.0
+
         nonzero = user_counts > 0
-        user_mean_cate[nonzero] /= user_counts[nonzero]
+        user_uplift[nonzero] /= user_counts[nonzero]
 
-        # Segment: positive uplift = Persuadable, negative = Sleeping Dog
-        segment_labels = np.where(
-            user_mean_cate > uplift_threshold, 0, 3
-        )  # 0=Persuadable, 3=Sleeping Dog (simplified two-class)
+        user_baseline = np.zeros(max_uid + 1, dtype=np.float32)
+        if baseline_responses is not None:
+            for i, uid in enumerate(user_ids):
+                user_baseline[uid] += baseline_responses[i]
+            user_baseline[nonzero] /= user_counts[nonzero]
 
-        segment_names = {0: "Persuadable", 3: "Sleeping Dog"}
+            user_bases = user_baseline[unique_users]
+            if response_threshold is None:
+                response_threshold = float(np.median(user_bases))
+                if response_threshold == 0.0:
+                    response_threshold = float(np.mean(user_bases))
+                if response_threshold == 0.0:
+                    response_threshold = 0.5
+        else:
+            if response_threshold is None:
+                response_threshold = 0.5
+            user_baseline.fill(0.0)
+
+        u_uplift = user_uplift[unique_users]
+        u_base = user_baseline[unique_users]
+
+        pos_uplift = u_uplift > uplift_threshold
+        high_base = u_base > response_threshold
+
+        if baseline_responses is None:
+            user_segments = np.where(pos_uplift, 0, 2)
+        else:
+            user_segments = np.zeros(len(unique_users), dtype=np.int32)
+            user_segments[(~high_base) & pos_uplift] = 0   # Persuadable
+            user_segments[high_base & pos_uplift] = 1      # Sure Thing
+            user_segments[(~high_base) & (~pos_uplift)] = 2 # Lost Cause
+            user_segments[high_base & (~pos_uplift)] = 3   # Sleeping Dog
+
+        segment_names = {
+            0: "Persuadable",
+            1: "Sure Thing",
+            2: "Lost Cause",
+            3: "Sleeping Dog",
+        }
         segment_counts = {
-            name: int((segment_labels[unique_users] == sid).sum())
+            name: int((user_segments == sid).sum())
             for sid, name in segment_names.items()
         }
 
         return {
-            "user_segments": segment_labels,
+            "user_segments": user_segments,
             "segment_counts": segment_counts,
             "per_sample_cate": cate_scores,
+            "response_threshold": response_threshold,
         }
 
     def propagate_cate(

@@ -149,7 +149,7 @@ def segment_users(
     uplift_values: np.ndarray,
     baseline_response: np.ndarray,
     uplift_threshold: float = 0.0,
-    response_threshold: float = 0.5,
+    response_threshold: Optional[float] = None,
 ) -> np.ndarray:
     """
     Segment users into the four classic uplift quadrants.
@@ -160,6 +160,7 @@ def segment_users(
     baseline_response : (N,) response probability WITHOUT treatment.
     uplift_threshold  : cutoff for positive/negative uplift.
     response_threshold: cutoff for high/low baseline response.
+                        If None, dynamically set to median/mean of baseline_response.
 
     Returns
     -------
@@ -169,15 +170,22 @@ def segment_users(
         2 = Lost Cause      (low baseline, negative uplift)  → don't bother
         3 = Sleeping Dog    (high baseline, negative uplift)  → DO NOT TOUCH
     """
+    if response_threshold is None:
+        response_threshold = float(np.median(baseline_response))
+        if response_threshold == 0.0:
+            response_threshold = float(np.mean(baseline_response))
+        if response_threshold == 0.0:
+            response_threshold = 0.5
+
     segments = np.zeros(len(uplift_values), dtype=np.int32)
 
     pos_uplift  = uplift_values > uplift_threshold
     high_base   = baseline_response > response_threshold
 
-    segments[(~high_base) & pos_uplift]  = 0   # Persuadable
-    segments[high_base & pos_uplift]     = 1   # Sure Thing
-    segments[(~high_base) & (~pos_uplift)] = 2 # Lost Cause
-    segments[high_base & (~pos_uplift)]  = 3   # Sleeping Dog
+    segments[(~high_base) & pos_uplift]    = 0   # Persuadable
+    segments[high_base & pos_uplift]       = 1   # Sure Thing
+    segments[(~high_base) & (~pos_uplift)] = 2   # Lost Cause
+    segments[high_base & (~pos_uplift)]    = 3   # Sleeping Dog
 
     return segments
 
@@ -215,13 +223,17 @@ def sleeping_dogs_analysis(
     """
     N = len(user_ids)
 
-    # Per-sample best uplift and mean uplift
+    # Per-sample uplift lookup
     user_uplifts = uplift_table[user_ids]                   # (N, A)
-    mean_uplift  = user_uplifts.mean(axis=1)                # (N,)
 
-    # Simple segmentation by mean uplift sign
-    is_sleeping_dog = mean_uplift < 0
-    is_persuadable  = mean_uplift > 0
+    # Expected uplift delivered under this policy vs max potential uplift
+    policy_uplift = (policy_probs * user_uplifts).sum(axis=1) # (N,)
+    max_uplift = user_uplifts.max(axis=1)                      # (N,)
+    eval_uplift = np.where(policy_uplift != 0.0, policy_uplift, max_uplift)
+
+    # Segmentation by uplift sign
+    is_sleeping_dog = eval_uplift < 0
+    is_persuadable  = eval_uplift > 0
 
     # Max action probability assigned by the policy (how confidently it intervenes)
     max_prob = policy_probs.max(axis=1)
@@ -235,9 +247,9 @@ def sleeping_dogs_analysis(
         "avg_max_prob_persuadable": float(
             max_prob[is_persuadable].mean()) if is_persuadable.any() else 0.0,
         "avg_uplift_sleeping_dog": float(
-            mean_uplift[is_sleeping_dog].mean()) if is_sleeping_dog.any() else 0.0,
+            eval_uplift[is_sleeping_dog].mean()) if is_sleeping_dog.any() else 0.0,
         "avg_uplift_persuadable": float(
-            mean_uplift[is_persuadable].mean()) if is_persuadable.any() else 0.0,
+            eval_uplift[is_persuadable].mean()) if is_persuadable.any() else 0.0,
     }
 
     return results
