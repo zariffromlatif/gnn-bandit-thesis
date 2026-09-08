@@ -28,7 +28,7 @@
 \cortext[cor1]{Corresponding author}
 
 \begin{abstract}
-Customer retention and personalized intervention optimization are pivotal challenges in contemporary digital enterprise systems. Traditional retention frameworks rely predominantly on supervised churn prediction, identifying at-risk users while failing to prescribe actionable, causal interventions that maximize customer lifetime value. While offline reinforcement learning (RL) and contextual bandits provide formal foundations for counterfactual decision-making, their practical deployment is obstructed by two systemic barriers: (1) severe state-action sparsity and cold-start regimes where individual interaction histories are sparse or absent, and (2) catastrophic out-of-distribution (OOD) extrapolation errors induced by distributional shift between the historical logging policy and learned target policies. In this paper, we propose \textbf{GNN-Bandit}, a unified Graph-Enhanced Batch-Constrained Causal Reinforcement Learning framework for safe offline policy optimization. GNN-Bandit constructs a bipartite user-item relational interaction graph and utilizes a non-linear-free Graph Convolutional Network (LightGCN) to diffuse treatment-response signals across multi-hop collaborative neighborhoods. We establish that this linear propagation operates as an adaptive low-pass graph spectral filter, preserving low-frequency homophilic causal signals while attenuating observational noise, thereby enabling robust inductive generalization to zero-degree cold-start users. To prevent counterfactual extrapolation errors without risky online environment interaction, GNN-Bandit implements an adaptive state-conditioned Batch-Constrained action filter coupled with a Conditional Value-at-Risk (CVaR) quantile objective that explicitly penalizes worst-case tail outcomes. Furthermore, we formulate offline policy optimization and enterprise budget allocation through the lens of Lagrangian duality, proving that batch constraints and counterfactual variance bounds emerge naturally as primal-dual solutions under bounded risk. We conduct extensive empirical evaluations across six large-scale benchmark datasets comprising over 11.5 million logged interactions from the Open Bandit Dataset (OBD-All, Men, Women), the Criteo Uplift benchmark, and large-scale micro-video platforms (KuaiRec, KuaiRand), benchmarking against 11 competitive baselines. Off-policy evaluation via Doubly Robust (DR) estimation demonstrates that GNN-Bandit achieves state-of-the-art policy value across all bipartite environments, outperforming the strongest baseline by \textbf{+25.31\% on OBD-All} ($p = 1.2 \times 10^{-5}$), \textbf{+16.49\% on OBD-Men} ($p = 0.0050$), and \textbf{+17.28\% on OBD-Women} ($p = 0.0018$) across five random seeds, with up to \textbf{+42.86\%} lift in zero-degree cold-start partitions. Architectural comparisons demonstrate that parameter-free spectral graph convolution achieves +14.28\% higher policy return than continuous temporal memory networks (TGN) while training an order of magnitude faster. GNN-Bandit establishes an empirically validated and theoretically grounded blueprint for high-stakes offline decision support.
+Customer retention and personalized intervention optimization are pivotal challenges in contemporary digital enterprise systems. Traditional retention frameworks rely predominantly on supervised churn prediction, identifying at-risk users while failing to prescribe actionable, causal interventions that maximize customer lifetime value. While offline reinforcement learning (RL) and contextual bandits provide formal foundations for counterfactual decision-making, their practical deployment is obstructed by two systemic barriers: (1) severe state-action sparsity and cold-start regimes where individual interaction histories are sparse or absent, and (2) catastrophic out-of-distribution (OOD) extrapolation errors induced by distributional shift between the historical logging policy and learned target policies. In this paper, we propose \textbf{GNN-Bandit}, a unified Graph-Enhanced Batch-Constrained Causal Reinforcement Learning framework for safe offline policy optimization. GNN-Bandit constructs a bipartite user-item relational interaction graph and utilizes a non-linear-free Graph Convolutional Network (LightGCN) to diffuse treatment-response signals across multi-hop collaborative neighborhoods. We establish that this linear propagation operates as an adaptive low-pass graph spectral filter, preserving low-frequency homophilic causal signals while attenuating observational noise, thereby enabling robust inductive generalization to zero-degree cold-start users. To prevent counterfactual extrapolation errors without risky online environment interaction, GNN-Bandit implements an adaptive state-conditioned Batch-Constrained action filter coupled with a Conditional Value-at-Risk (CVaR) quantile objective that explicitly penalizes worst-case tail outcomes. Furthermore, we formulate offline policy optimization and enterprise budget allocation through the lens of Lagrangian duality, proving that batch constraints and counterfactual variance bounds emerge naturally as primal-dual solutions under bounded risk. We conduct extensive empirical evaluations across six large-scale benchmark datasets comprising more than 40 million logged interactions from the Open Bandit Dataset (OBD-All, Men, Women), the Criteo Uplift benchmark, and large-scale micro-video platforms (KuaiRec, KuaiRand), benchmarking against 11 competitive baselines. Off-policy evaluation via Doubly Robust (DR) estimation demonstrates that GNN-Bandit attains the highest policy value on all three OBD campaigns, outperforming the strongest baseline by \textbf{+25.31\% on OBD-All} ($p = 1.2 \times 10^{-5}$), \textbf{+16.08\% on OBD-Men} ($p = 7.8 \times 10^{-4}$), and \textbf{+17.28\% on OBD-Women} ($p = 0.0018$) across five random seeds, while surpassing the historical logging policy on every benchmark (+13.50\% to +107.50\%). On the micro-video (KuaiRec, KuaiRand) and binary-treatment (Criteo) regimes, where interaction graphs are absent or degenerate, GNN-Bandit remains within 11\% of the strongest baselines while consistently beating the logging policy. In zero-degree cold-start partitions, GNN-Bandit achieves up to \textbf{+42.87\%} lift over matrix factorization baselines. Architectural comparisons demonstrate that parameter-free spectral graph convolution achieves +14.27\% higher policy return than continuous temporal memory networks (TGN) at comparable wall-clock training cost. GNN-Bandit establishes an empirically validated and theoretically grounded blueprint for high-stakes offline decision support.
 \end{abstract}
 
 \begin{keyword}
@@ -54,7 +54,7 @@ To transition from passive prediction to prescriptive decision-making, the probl
 Deploying online RL agents directly in production is unacceptable in high-stakes commercial environments due to the catastrophic revenue loss and customer dissatisfaction caused by exploratory, sub-optimal actions. Platforms must therefore learn exclusively from \textbf{offline logged interaction datasets} $\mathcal{D}_0 = \{(x_i, a_i, r_i, p_i)\}_{i=1}^N$ collected by historical logging policies $\pi_0$. Offline policy optimization under logging bias introduces two severe methodological hurdles:
 \begin{enumerate}
     \item \textbf{Distributional Shift and Extrapolation Error}: Standard value-based RL algorithms greedily maximize $Q(s, a)$ over all actions. For unobserved state-action pairs ($a \notin \text{supp}(\pi_0(\cdot|s))$), neural network function approximators produce unchecked over-optimistic value estimates. When the learned policy selects these out-of-distribution (OOD) actions, real-world deployment fails catastrophically.
-    \item \textbf{Extreme Sparsity and the Cold-Start Dilemma}: Real-world user populations exhibit power-law interaction topologies. In the Open Bandit Dataset (OBD), for example, 42.6\% of user profiles are complete \textbf{cold-start nodes} with zero prior positive interactions. Standard Euclidean feature representations fail because isolated feature vectors contain insufficient signal to infer personalized causal responsiveness.
+    \item \textbf{Extreme Sparsity and the Cold-Start Dilemma}: Real-world user populations exhibit power-law interaction topologies. In the Open Bandit Dataset (OBD), for example, 51.8\% of user segments (249 of 481) are complete \textbf{cold-start nodes} with zero prior positive interactions. Standard Euclidean feature representations fail because isolated feature vectors contain insufficient signal to infer personalized causal responsiveness.
 \end{enumerate}
 
 To simultaneously resolve distributional shift, cold-start relational sparsity, and enterprise operational constraints, we introduce \textbf{GNN-Bandit}, a unified Graph-Enhanced Causal Reinforcement Learning framework:
@@ -207,44 +207,43 @@ If $\pi_0$ is exact, the $\hat{r}$ terms cancel identically. If $\hat{r}$ is exa
 \begin{table*}[t]
 \centering
 \small
-\caption{Cross-dataset empirical benchmark measured by the Doubly Robust (DR) policy estimator (Mean $\pm$ Std across 5 seeds: 0--4). Statistical significance relative to the best baseline is evaluated via two-sided paired Student's $t$-tests ($^{***}p < 0.001$, $^{**}p < 0.01$, $^{*}p < 0.05$, $\text{ns}$: not significant). Best results in bold; second-best underlined.}
+\caption{Cross-dataset empirical benchmark measured by the Doubly Robust (DR) policy estimator (Mean $\pm$ Std across 5 seeds: 0--4). Asterisks on the GNN-Bandit row denote two-sided paired Student's $t$-tests against the strongest baseline per dataset ($^{***}p < 0.001$, $^{**}p < 0.01$, $^{*}p < 0.05$, $\text{ns}$: not significant); the sign of the corresponding difference is given by the final two rows. Best results in \textbf{bold}; second-best underlined. $^{\dagger}$The Decision Transformer consumes the same graph-augmented states; for OBD-All/Men/Women and Criteo its estimates are taken from the TGN-encoder batch (Section~\ref{sec:tgn}), as it was not evaluated in the LightGCN-encoder runs for those datasets.}
 \label{tab:main_results}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
 \textbf{Method} & \textbf{OBD-All} & \textbf{OBD-Men} & \textbf{OBD-Women} & \textbf{KuaiRec} & \textbf{KuaiRand} & \textbf{Criteo Uplift} \\
 \midrule
-\textbf{GNN-Bandit (Ours)} & \textbf{0.008404 $\pm$ 0.000099}$^{***}$ & \textbf{0.010317 $\pm$ 0.000380}$^{**}$ & \textbf{0.010086 $\pm$ 0.000454}$^{**}$ & \textbf{0.112655 $\pm$ 0.020033}$^{*}$ & \textbf{0.453466 $\pm$ 0.006843}$^{*}$ & 0.002726 $\pm$ 0.000013$^{\text{ns}}$ \\
-Decision Transformer \cite{chen2021decision} & 0.005883 $\pm$ 0.000029 & 0.008434 $\pm$ 0.000037 & 0.008369 $\pm$ 0.000068 & \textbf{0.124970 $\pm$ 0.021138} & 0.442245 $\pm$ 0.004737 & \textbf{0.003054 $\pm$ 0.000005} \\
-CQL \cite{kumar2020conservative} & \underline{0.006706 $\pm$ 0.000048} & 0.008829 $\pm$ 0.000039 & \underline{0.008599 $\pm$ 0.000085} & 0.107662 $\pm$ 0.012573 & \underline{0.478223 $\pm$ 0.004404} & \underline{0.003052 $\pm$ 0.000004} \\
-Greedy-GNN (No RL) & 0.005956 $\pm$ 0.000043 & \underline{0.008856 $\pm$ 0.000056} & 0.008053 $\pm$ 0.000028 & \underline{0.112085 $\pm$ 0.020466} & 0.450351 $\pm$ 0.006554 & 0.002542 $\pm$ 0.000004 \\
-NeuralUCB \cite{zhou2020neural} & 0.005841 $\pm$ 0.000098 & 0.006728 $\pm$ 0.000090 & 0.006877 $\pm$ 0.000027 & 0.077315 $\pm$ 0.001839 & 0.498329 $\pm$ 0.001976 & 0.002634 $\pm$ 0.000023 \\
-IQL \cite{kostrikov2021offline} & 0.005728 $\pm$ 0.000087 & 0.006759 $\pm$ 0.000156 & 0.006881 $\pm$ 0.000192 & 0.078321 $\pm$ 0.003023 & 0.497988 $\pm$ 0.004454 & 0.002627 $\pm$ 0.000017 \\
-MF-Bandit \cite{mnih2008probabilistic} & 0.004826 $\pm$ 0.000036 & 0.006769 $\pm$ 0.000054 & 0.006645 $\pm$ 0.000059 & 0.073661 $\pm$ 0.001393 & 0.436460 $\pm$ 0.002076 & 0.002553 $\pm$ 0.000003 \\
-LinUCB \cite{li2010contextual} & 0.004776 $\pm$ 0.000014 & 0.006655 $\pm$ 0.000051 & 0.005959 $\pm$ 0.000087 & 0.093332 $\pm$ 0.004948 & \textbf{0.503161 $\pm$ 0.008125} & 0.002587 $\pm$ 0.000004 \\
-Uplift-Only \cite{kunzel2019metalearners} & 0.004188 $\pm$ 0.000006 & 0.005993 $\pm$ 0.000018 & 0.005235 $\pm$ 0.000041 & 0.070021 $\pm$ 0.001531 & 0.406679 $\pm$ 0.002483 & 0.002551 $\pm$ 0.000004 \\
-DQN \cite{mnih2015human} & 0.004174 $\pm$ 0.000005 & 0.005971 $\pm$ 0.000024 & 0.005264 $\pm$ 0.000042 & 0.070901 $\pm$ 0.001631 & 0.418398 $\pm$ 0.002494 & 0.002551 $\pm$ 0.000005 \\
-Random Policy & 0.004143 $\pm$ 0.000006 & 0.005957 $\pm$ 0.000018 & 0.005228 $\pm$ 0.000041 & 0.070021 $\pm$ 0.001531 & 0.406679 $\pm$ 0.002483 & 0.002542 $\pm$ 0.000004 \\
-BTS (Logging Policy) \cite{saito2020open} & 0.004050 $\pm$ 0.000020 & 0.006044 $\pm$ 0.000072 & 0.005662 $\pm$ 0.000072 & 0.070021 $\pm$ 0.001531 & 0.399527 $\pm$ 0.004648 & \underline{0.002717 $\pm$ 0.000023} \\
+\textbf{GNN-Bandit (Ours)} & \textbf{0.008404 $\pm$ 0.000099}$^{***}$ & \textbf{0.010301 $\pm$ 0.000342}$^{***}$ & \textbf{0.010086 $\pm$ 0.000454}$^{**}$ & \underline{0.112655 $\pm$ 0.020033}$^{*}$ & 0.453466 $\pm$ 0.006843$^{***}$ & 0.002726 $\pm$ 0.000013$^{***}$ \\
+Decision Transformer$^{\dagger}$ \cite{chen2021decision} & 0.005883 $\pm$ 0.000029 & 0.008434 $\pm$ 0.000037 & 0.008369 $\pm$ 0.000068 & \textbf{0.124970 $\pm$ 0.021138} & 0.442245 $\pm$ 0.004737 & \textbf{0.003054 $\pm$ 0.000005} \\
+CQL \cite{kumar2020conservative} & \underline{0.006706 $\pm$ 0.000048} & 0.008852 $\pm$ 0.000058 & \underline{0.008599 $\pm$ 0.000085} & 0.107662 $\pm$ 0.012573 & 0.478223 $\pm$ 0.004404 & \underline{0.003052 $\pm$ 0.000004} \\
+Greedy-GNN (No RL) & 0.005956 $\pm$ 0.000043 & \underline{0.008874 $\pm$ 0.000062} & 0.008053 $\pm$ 0.000028 & 0.112085 $\pm$ 0.020466 & 0.450351 $\pm$ 0.006554 & 0.002542 $\pm$ 0.000004 \\
+NeuralUCB \cite{zhou2020neural} & 0.005841 $\pm$ 0.000098 & 0.006714 $\pm$ 0.000085 & 0.006877 $\pm$ 0.000027 & 0.077315 $\pm$ 0.001839 & \underline{0.498329 $\pm$ 0.001976} & 0.002634 $\pm$ 0.000023 \\
+IQL \cite{kostrikov2021offline} & 0.005728 $\pm$ 0.000087 & 0.006744 $\pm$ 0.000143 & 0.006881 $\pm$ 0.000192 & 0.078321 $\pm$ 0.003023 & 0.497988 $\pm$ 0.004454 & 0.002627 $\pm$ 0.000017 \\
+MF-Bandit \cite{mnih2008probabilistic} & 0.004826 $\pm$ 0.000036 & 0.006784 $\pm$ 0.000057 & 0.006645 $\pm$ 0.000059 & 0.073661 $\pm$ 0.001393 & 0.436460 $\pm$ 0.002076 & 0.002553 $\pm$ 0.000003 \\
+LinUCB \cite{li2010contextual} & 0.004776 $\pm$ 0.000014 & 0.006647 $\pm$ 0.000048 & 0.005959 $\pm$ 0.000087 & 0.093332 $\pm$ 0.004948 & \textbf{0.503161 $\pm$ 0.008125} & 0.002587 $\pm$ 0.000004 \\
+Uplift-Only \cite{kunzel2019metalearners} & 0.004188 $\pm$ 0.000006 & 0.005991 $\pm$ 0.000017 & 0.005235 $\pm$ 0.000041 & 0.070021 $\pm$ 0.001531 & 0.406679 $\pm$ 0.002483 & 0.002551 $\pm$ 0.000004 \\
+DQN \cite{mnih2015human} & 0.004174 $\pm$ 0.000005 & 0.005968 $\pm$ 0.000023 & 0.005264 $\pm$ 0.000042 & 0.070901 $\pm$ 0.001631 & 0.418398 $\pm$ 0.002494 & 0.002551 $\pm$ 0.000005 \\
+Random Policy & 0.004143 $\pm$ 0.000006 & 0.005954 $\pm$ 0.000017 & 0.005228 $\pm$ 0.000041 & 0.070021 $\pm$ 0.001531 & 0.406679 $\pm$ 0.002483 & 0.002542 $\pm$ 0.000004 \\
+BTS (Logging Policy) \cite{saito2020open} & 0.004050 $\pm$ 0.000020 & 0.006005 $\pm$ 0.000102 & 0.005662 $\pm$ 0.000072 & 0.070021 $\pm$ 0.001531 & 0.399527 $\pm$ 0.004648 & 0.002717 $\pm$ 0.000023 \\
 \midrule
-\textbf{Lift vs. Best Baseline (\%)} & \textbf{+25.31\%} & \textbf{+16.49\%} & \textbf{+17.28\%} & \textbf{+0.51\%} & \textbf{+2.54\%} & -10.67\% \\
-\textbf{Lift vs. Logging Policy (\%)} & \textbf{+107.50\%} & \textbf{+70.68\%} & \textbf{+78.14\%} & \textbf{+60.89\%} & \textbf{+13.50\%} & +0.33\% \\
+Lift vs. Best Baseline (\%) & +25.31\% & +16.08\% & +17.28\% & $-$9.85\% & $-$9.88\% & $-$10.67\% \\
+Lift vs. Logging Policy (\%) & +107.50\% & +71.55\% & +78.14\% & +60.89\% & +13.50\% & +0.35\% \\
 \bottomrule
 \end{tabular*}
 \end{table*}
 
 \subsection{Cross-Dataset Empirical Findings}
-As shown in Table~\ref{tab:main_results} and Figure~\ref{fig:cross_dataset}, GNN-Bandit establishes superior empirical performance across five distinct benchmarks:
+As shown in Table~\ref{tab:main_results} and Figure~\ref{fig:cross_dataset}, the empirical picture separates cleanly into two regimes:
 \begin{itemize}
-    \item On \textbf{OBD-All}, GNN-Bandit achieves $0.008404$ DR value, outperforming CQL by \textbf{+25.31\%} ($p = 1.2 \times 10^{-5}$) and the logging BTS policy by \textbf{+107.50\%}.
-    \item On \textbf{OBD-Men} and \textbf{OBD-Women}, GNN-Bandit delivers \textbf{+16.49\%} ($p = 0.0050$) and \textbf{+17.28\%} ($p = 0.0018$) relative lifts over the strongest baselines.
-    \item On \textbf{KuaiRec}, GNN-Bandit achieves $0.112655$, surpassing CQL by \textbf{+4.64\%} and logging policy by \textbf{+60.89\%} ($p < 0.05$ across 8 baselines).
-    \item On \textbf{KuaiRand}, GNN-Bandit achieves $0.453466$, outperforming Decision Transformer by \textbf{+2.54\%} and BTS by \textbf{+13.50\%} ($p = 5.1 \times 10^{-5}$).
+    \item \textbf{Interaction-graph regimes (OBD family).} GNN-Bandit attains the highest DR value on all three OBD campaigns: $0.008404$ on OBD-All, exceeding the strongest baseline (CQL) by \textbf{+25.31\%} ($p = 1.2 \times 10^{-5}$) and the logging BTS policy by \textbf{+107.50\%}; $0.010301$ on OBD-Men (\textbf{+16.08\%} over Greedy-GNN, $p = 7.8 \times 10^{-4}$); and $0.010086$ on OBD-Women (\textbf{+17.28\%} over CQL, $p = 0.0018$).
+    \item \textbf{Weaker-graph regimes (KuaiRec, KuaiRand, Criteo).} On KuaiRec, GNN-Bandit ($0.112655$) surpasses the logging policy by \textbf{+60.89\%} and nine of eleven baselines, but trails the Decision Transformer ($0.124970$, $p = 0.016$). On KuaiRand, GNN-Bandit ($0.453466$) beats the logging policy by \textbf{+13.50\%} yet remains $9.88\%$ below LinUCB ($p = 7.99 \times 10^{-4}$) and $8.9\%$ below NeuralUCB. On Criteo---a binary-treatment setting in which the kNN user graph carries almost no collaborative signal---CQL ($0.003052$) outperforms GNN-Bandit ($0.002726$) by $10.67\%$ ($p = 1.3 \times 10^{-6}$), while GNN-Bandit still matches the logging policy ($+0.35\%$).
 \end{itemize}
+This decomposition is itself informative: the graph-propagated causal smoothing that powers GNN-Bandit requires a bipartite interaction topology with meaningful collaborative structure. Where such structure is dense (OBD), the framework dominates; where it is diluted (KuaiRec/KuaiRand item clusters) or absent (Criteo's segment-level kNN graph over a randomized binary treatment), unconstrained or context-only methods can match or exceed it. We view precisely characterizing this applicability boundary as a key empirical contribution: graph enhancement is a conditional amplifier, not a universal one.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.85\linewidth]{figures/fig1_cross_dataset_benchmark.pdf}
-\caption{Cross-dataset normalized policy value comparison relative to the historical logging policy baseline ($1.0\times$). GNN-Bandit demonstrates consistent empirical superiority across both e-commerce and micro-video streaming domains.}
+\caption{Cross-dataset normalized policy value relative to the historical logging policy baseline ($1.0\times$). GNN-Bandit (blue) delivers the largest gains on the interaction-graph OBD campaigns and remains above the logging policy on every benchmark, while context-only methods (e.g., LinUCB on KuaiRand) lead in the weaker-graph regimes (Table~\ref{tab:main_results}).}
 \label{fig:cross_dataset}
 \end{figure}
 
@@ -258,31 +257,32 @@ As detailed in Figure~\ref{fig:ablation}, removing the GNN embeddings (\textit{N
 \label{fig:ablation}
 \end{figure}
 
-In cold-start user partitions (Figure~\ref{fig:cold_start}), GNN-Bandit exhibits marked robustness across both e-commerce and micro-video streaming regimes. On OBD-Men with 205 zero-degree users (representing 42.6\% of user profiles), GNN-Bandit attains a Doubly Robust return of $0.012080 \pm 0.000686$, achieving a \textbf{+42.86\% lift} over matrix factorization baselines. Similarly, on KuaiRec cold-start users, GNN-Bandit ($0.188931 \pm 0.038067$) outperforms CQL ($0.111575 \pm 0.019544$) by \textbf{+69.33\%} and MF-Bandit ($0.039363 \pm 0.003328$) by \textbf{+379.97\%}. On KuaiRand cold-start users (1,573 zero-degree users), GNN-Bandit ($0.543158 \pm 0.007002$) surpasses MF-Bandit by \textbf{+15.02\%} and historical logging by \textbf{+15.79\%}, demonstrating inductive topological generalization when collaborative interaction history is absent.
+In cold-start user partitions (Figure~\ref{fig:cold_start}), GNN-Bandit exhibits marked resilience when collaborative interaction history is absent. On OBD-Men, where 243 of 425 user segments (57.2\%) are zero-degree nodes, GNN-Bandit attains a Doubly Robust return of $0.012080 \pm 0.000686$, achieving a \textbf{+42.87\% lift} over the matrix factorization baseline ($0.008456$) and $+13.81\%$ over CQL ($0.010615$). On KuaiRec cold-start users, GNN-Bandit ($0.188931 \pm 0.038067$) outperforms CQL ($0.111575 \pm 0.019544$) by \textbf{+69.33\%} and MF-Bandit ($0.039363 \pm 0.003328$) by \textbf{+379.97\%}. On KuaiRand cold-start users, GNN-Bandit ($0.543158 \pm 0.007002$) surpasses MF-Bandit by \textbf{+15.02\%} and the historical logging policy by \textbf{+15.79\%}. We note two honest caveats. First, the advantage is graph-dependent: on OBD-All and OBD-Women cold-start partitions, GNN-Bandit ($0.005605$ and $0.008560$) trails Greedy-GNN ($0.006122$) and CQL ($0.009351$) respectively, indicating that graph priors transfer best when the zero-degree population retains measurable collaborative signal. Second, exploration-oriented baselines exploit the random-exposure structure of KuaiRand: NeuralUCB ($0.570590$), IQL ($0.565811$), and LinUCB ($0.547017$) exceed GNN-Bandit there, so the cold-start crown on that benchmark belongs to uncertainty-driven methods rather than to graph propagation.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.75\linewidth]{figures/fig3_cold_start_comparison.pdf}
-\caption{Cold-start policy performance on 205 zero-degree users with no historical training edges (OBD-Men), showcasing inductive topological generalization.}
+\caption{Cold-start policy performance on zero-degree user segments with no historical training edges (OBD-Men: 243 of 425 segments), showcasing inductive topological generalization.}
 \label{fig:cold_start}
 \end{figure}
 
 \subsection{Architectural Comparison: LightGCN vs. Temporal Graph Networks (TGN)}
+\label{sec:tgn}
 Table~\ref{tab:tgn_comparison} and Figure~\ref{fig:tgn} evaluate whether continuous-time recurrent memory encoding (TGN \cite{rossi2020temporal}) provides superior inductive priors compared to parameter-free spectral graph convolution (LightGCN).
 
 \begin{table}[t]
 \centering
 \small
-\caption{Architectural comparison between parameter-free static spectral graph convolutions (LightGCN) and continuous-time recurrent memory graph encoding (TGN). DR policy values are Mean $\pm$ Std across 5 random seeds.}
+\caption{Architectural comparison between parameter-free static spectral graph convolutions (LightGCN) and continuous-time recurrent memory graph encoding (TGN). DR policy values are Mean $\pm$ Std across 5 random seeds; $p$-values from two-sided paired $t$-tests.}
 \label{tab:tgn_comparison}
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Dataset} & \textbf{LightGCN (Default)} & \textbf{TGN Encoder} & \textbf{Relative Advantage} & \textbf{$t$-test $p$-value} \\
 \midrule
-\textbf{OBD-All}   & \textbf{0.008404 $\pm$ 0.000099} & 0.007354 $\pm$ 0.000668 & \textbf{+14.28\% (LightGCN)} & $p = 0.0142^{*}$ \\
-\textbf{OBD-Men}   & \textbf{0.010317 $\pm$ 0.000380} & 0.010181 $\pm$ 0.000378 & \textbf{+1.34\% (LightGCN)}  & $p = 0.5872^{\text{ns}}$ \\
-\textbf{OBD-Women} & \textbf{0.010086 $\pm$ 0.000454} & 0.009098 $\pm$ 0.000570 & \textbf{+10.86\% (LightGCN)} & $p = 0.0185^{*}$ \\
-\textbf{Criteo}    & \textbf{0.002726 $\pm$ 0.000013} & 0.002712 $\pm$ 0.000308 & \textbf{+0.52\% (LightGCN)}  & $p = 0.9221^{\text{ns}}$ \\
+\textbf{OBD-All}   & \textbf{0.008404 $\pm$ 0.000099} & 0.007354 $\pm$ 0.000668 & \textbf{+14.27\% (LightGCN)} & $p = 0.0280^{*}$ \\
+\textbf{OBD-Men}   & \textbf{0.010301 $\pm$ 0.000342} & 0.010181 $\pm$ 0.000378 & \textbf{+1.18\% (LightGCN)}  & $p = 0.7224^{\text{ns}}$ \\
+\textbf{OBD-Women} & \textbf{0.010086 $\pm$ 0.000454} & 0.009098 $\pm$ 0.000570 & \textbf{+10.85\% (LightGCN)} & $p = 0.0455^{*}$ \\
+\textbf{Criteo}    & \textbf{0.002726 $\pm$ 0.000013} & 0.002712 $\pm$ 0.000308 & \textbf{+0.52\% (LightGCN)}  & $p = 0.9314^{\text{ns}}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -290,30 +290,30 @@ Table~\ref{tab:tgn_comparison} and Figure~\ref{fig:tgn} evaluate whether continu
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.75\linewidth]{figures/fig4_tgn_vs_lightgcn.pdf}
-\caption{Empirical comparison of LightGCN vs. TGN, confirming that linear spectral Laplacian diffusion outperforms recurrent memory networks on bipartite offline recommendation manifolds.}
+\caption{Empirical comparison of LightGCN vs. TGN, indicating that linear spectral Laplacian diffusion outperforms recurrent memory networks on bipartite offline recommendation manifolds.}
 \label{fig:tgn}
 \end{figure}
 
-The empirical results confirm that LightGCN outperforms TGN by \textbf{+14.28\% on OBD-All} and \textbf{+10.86\% on OBD-Women}. While TGN models fine-grained continuous timestamp ordering, it is prone to severe recurrent overfitting and high variance in sparse offline bandit regimes. LightGCN's parameter-free normalized Laplacian propagation provides cleaner spectral homophily smoothing while executing over 10$\times$ faster.
+The empirical results confirm that LightGCN outperforms TGN by \textbf{+14.27\% on OBD-All} and \textbf{+10.85\% on OBD-Women} (both $p < 0.05$). While TGN models fine-grained continuous timestamp ordering, it is prone to recurrent overfitting and high variance in sparse offline bandit regimes; LightGCN's parameter-free normalized Laplacian propagation provides cleaner spectral homophily smoothing at comparable wall-clock training cost ($0.8\times$--$1.5\times$ across datasets, measured end-to-end per pipeline run).
 
 \subsection{Lagrangian Multiplier $\lambda_{\mathrm{CFR}}$ Pareto Frontier}
-Table~\ref{tab:lagrangian_cfr} and Figure~\ref{fig:lagrangian} illustrate the empirical Pareto trade-off governed by the Lagrange multiplier $\lambda_{\mathrm{CFR}} \in \{0.05, 0.10, 0.20\}$ in Counterfactual Risk Minimization. Setting $\lambda = 0.05$ achieves the optimal balance, maximizing expected return while suppressing estimation variance (CV\% $\le 2.07\%$).
+Table~\ref{tab:lagrangian_cfr} and Figure~\ref{fig:lagrangian} illustrate the empirical trade-off governed by the Lagrange multiplier $\lambda_{\mathrm{CFR}} \in \{0.05, 0.10, 0.20\}$ in Counterfactual Risk Minimization. The sweep reveals a dataset-dependent optimum: $\lambda = 0.05$ maximizes expected return on OBD-All and OBD-Women, whereas OBD-Men peaks at $\lambda = 0.10$ and Criteo at $\lambda = 0.20$ (the binary-treatment regime tolerates---indeed benefits from---stronger counterfactual regularization). Across all OBD campaigns the spread between the best and worst $\lambda$ remains within $\sim$10--22\% of the peak DR value, indicating graceful rather than catastrophic degradation. Estimation variance grows with regularization on the OBD campaigns (e.g., OBD-Women CV\% rising from 2.09\% at $\lambda=0.05$ to 13.15\% at $\lambda=0.20$), so we adopt $\lambda = 0.05$ as the default operating point for interaction-graph benchmarks and report per-dataset sensitivity.
 
 \begin{table*}[t]
 \centering
 \small
-\caption{Empirical Pareto frontier governed by the Lagrange multiplier $\lambda_{\mathrm{CFR}} \in \{0.05, 0.1, 0.2\}$ balancing expected policy return against counterfactual estimation variance. Values are Mean DR $\pm$ Std and Coefficient of Variation (CV\%).}
+\caption{Empirical Pareto frontier governed by the Lagrange multiplier $\lambda_{\mathrm{CFR}} \in \{0.05, 0.1, 0.2\}$ balancing expected policy return against counterfactual estimation variance. Values are Mean DR $\pm$ Std and Coefficient of Variation (CV\%) across 5 seeds.}
 \label{tab:lagrangian_cfr}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
-\multirow{2}{*}{\textbf{Dataset}} & \multicolumn{2}{c}{$\lambda = 0.05$ (Optimal Bound)} & \multicolumn{2}{c}{$\lambda = 0.10$ (Moderate)} & \multicolumn{2}{c}{$\lambda = 0.20$ (High Regularization)} \\
+\multirow{2}{*}{\textbf{Dataset}} & \multicolumn{2}{c}{$\lambda = 0.05$} & \multicolumn{2}{c}{$\lambda = 0.10$} & \multicolumn{2}{c}{$\lambda = 0.20$} \\
 \cmidrule{2-3} \cmidrule{4-5} \cmidrule{6-7}
  & \textbf{Mean DR $\pm$ Std} & \textbf{CV (\%)} & \textbf{Mean DR $\pm$ Std} & \textbf{CV (\%)} & \textbf{Mean DR $\pm$ Std} & \textbf{CV (\%)} \\
 \midrule
-\textbf{OBD-All}   & \textbf{0.008501 $\pm$ 0.000176} & 2.07\% & 0.008404 $\pm$ 0.000099 & 1.18\% & 0.008120 $\pm$ 0.000210 & 2.59\% \\
-\textbf{OBD-Men}   & \textbf{0.010317 $\pm$ 0.000380} & 3.68\% & 0.010213 $\pm$ 0.000398 & 3.90\% & 0.009840 $\pm$ 0.000450 & 4.57\% \\
-\textbf{OBD-Women} & \textbf{0.010181 $\pm$ 0.000238} & 2.34\% & 0.010086 $\pm$ 0.000454 & 4.50\% & 0.009710 $\pm$ 0.000380 & 3.91\% \\
-\textbf{Criteo}    & \textbf{0.002726 $\pm$ 0.000013} & 0.48\% & 0.002715 $\pm$ 0.000018 & 0.66\% & 0.002690 $\pm$ 0.000025 & 0.93\% \\
+\textbf{OBD-All}   & \textbf{0.008501 $\pm$ 0.000158} & 1.85\% & 0.007924 $\pm$ 0.000894 & 11.28\% & 0.006632 $\pm$ 0.000862 & 12.99\% \\
+\textbf{OBD-Men}   & 0.008891 $\pm$ 0.001162 & 13.07\% & \textbf{0.009425 $\pm$ 0.001082} & 11.48\% & 0.008521 $\pm$ 0.001214 & 14.24\% \\
+\textbf{OBD-Women} & \textbf{0.010181 $\pm$ 0.000213} & 2.09\% & 0.009281 $\pm$ 0.001534 & 16.52\% & 0.009258 $\pm$ 0.001217 & 13.15\% \\
+\textbf{Criteo}    & 0.002515 $\pm$ 0.000272 & 10.80\% & 0.002482 $\pm$ 0.000217 & 8.74\% & \textbf{0.002592 $\pm$ 0.000237} & 9.14\% \\
 \bottomrule
 \end{tabular*}
 \end{table*}
@@ -370,7 +370,7 @@ $L = 4$ & 0.094326 & $\alpha = 0.50$ & 0.103815 \\
 \section{Conclusion}
 \label{sec:conclusion}
 
-In this paper, we proposed GNN-Bandit, a principled framework combining Graph Neural Networks, Batch-Constrained Reinforcement Learning, Lagrangian Optimization, and Doubly Robust Off-Policy Evaluation for safe customer retention. By utilizing LightGCN linear graph convolutions as low-pass causal spectral filters, GNN-Bandit resolves the cold-start challenge in offline policy learning, while BCQ action filtering eliminates distributional extrapolation errors. Grounding offline constraints in Lagrangian duality provides a mathematically unified foundation for real-world enterprise budget pacing. Exhaustive empirical validation across six benchmark datasets (>11.5M logged interactions) demonstrates statistically significant improvements (+15\% to +25\%) over 11 baselines with proven cold-start robustness, establishing a rigorous and deployable blueprint for high-stakes offline decision support.
+In this paper, we proposed GNN-Bandit, a principled framework combining Graph Neural Networks, Batch-Constrained Reinforcement Learning, Lagrangian Optimization, and Doubly Robust Off-Policy Evaluation for safe customer retention. By utilizing LightGCN linear graph convolutions as low-pass causal spectral filters, GNN-Bandit resolves the cold-start challenge in offline policy learning, while BCQ action filtering eliminates distributional extrapolation errors. Grounding offline constraints in Lagrangian duality provides a mathematically unified foundation for real-world enterprise budget pacing. Exhaustive empirical validation across six benchmark datasets (more than 40 million logged interactions) shows statistically significant gains of \textbf{+16.08\% to +25.31\%} over the strongest baseline on all three interaction-graph OBD campaigns, consistent improvements over the historical logging policy on every benchmark, and cold-start resilience---while transparently delimiting the boundary conditions (weak or absent collaborative graphs) under which context-only and unconstrained methods remain competitive. This applicability boundary, established empirically and motivated by the low-pass spectral analysis, is itself a core deliverable: it tells practitioners precisely when graph-enhanced causal policy learning pays off. GNN-Bandit thereby establishes a rigorous and deployable blueprint for high-stakes offline decision support.
 
 \bibliographystyle{elsarticle-num}
 \bibliography{references}

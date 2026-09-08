@@ -44,10 +44,10 @@ def plot_fig1_cross_dataset():
     fig, ax = plt.subplots(figsize=(8, 4.8))
     
     datasets = ["OBD-All", "OBD-Men", "OBD-Women", "KuaiRec", "KuaiRand"]
-    gnn_bandit = [0.008404, 0.010317, 0.010086, 0.112655, 0.453466]
-    cql = [0.006706, 0.008829, 0.008599, 0.107662, 0.478223]
-    greedy_gnn = [0.005956, 0.008856, 0.008053, 0.112085, 0.450351]
-    bts_logging = [0.004050, 0.006044, 0.005662, 0.070021, 0.399527]
+    gnn_bandit = [0.008404, 0.010301, 0.010086, 0.112655, 0.453466]
+    cql = [0.006706, 0.008852, 0.008599, 0.107662, 0.478223]
+    greedy_gnn = [0.005956, 0.008874, 0.008053, 0.112085, 0.450351]
+    bts_logging = [0.004050, 0.006005, 0.005662, 0.070021, 0.399527]
     
     # Normalize by BTS Logging Policy to show Relative Value Ratio
     ratio_gnn = [g / b for g, b in zip(gnn_bandit, bts_logging)]
@@ -64,7 +64,7 @@ def plot_fig1_cross_dataset():
     ax.axhline(1.0, color="gray", linestyle=":", linewidth=1.5, label="Logging Baseline (BTS = 1.0×)")
     
     ax.set_ylabel("Normalized Policy Value (× Logging BTS)")
-    ax.set_title("Cross-Dataset Empirical Superiority across Diverse Domains")
+    ax.set_title("Policy Value Relative to Logging Policy across Datasets")
     ax.set_xticks(x)
     ax.set_xticklabels(datasets, fontweight="bold")
     ax.legend(frameon=True, facecolor="white", edgecolor="lightgray", loc="upper right")
@@ -89,8 +89,8 @@ def plot_fig2_ablation():
     fig, ax = plt.subplots(figsize=(7, 4.2))
     
     datasets = ["OBD-All", "OBD-Men", "OBD-Women", "Criteo"]
-    deg_gnn = [41.71, 32.11, 31.31, 6.15]
-    deg_bcq = [51.11, 41.25, 46.78, 6.04]
+    deg_gnn = [41.70, 32.12, 31.31, 6.14]
+    deg_bcq = [51.11, 41.25, 46.78, 6.03]
     
     x = np.arange(len(datasets))
     width = 0.35
@@ -125,19 +125,18 @@ def plot_fig3_cold_start():
     
     models = ["GNN-Bandit\n(Ours)", "Greedy-GNN", "CQL", "MF-Bandit", "NeuralUCB", "BTS\n(Logging)"]
     scores = [0.012080, 0.011096, 0.010615, 0.008456, 0.006992, 0.007721]
-    stds =   [0.000686, 0.000051, 0.000045, 0.000123, 0.000052, 0.000157]
-    
+    stds =   [0.000686, 0.000051, 0.000045, 0.000123, 0.000052, 0.000157]    
     colors = ["#1f77b4", "#2ca02c", "#ff7f0e", "#7f7f7f", "#bcbd22", "#17becf"]
     
     bars = ax.bar(models, scores, yerr=stds, capsize=4, color=colors, edgecolor="black", linewidth=0.8)
     
     # Add lift annotation over MF-Bandit
-    ax.annotate("+42.86% Lift\nover MF", xy=(0, 0.012080), xytext=(0, 0.0135),
+    ax.annotate("+42.87% Lift\nover MF", xy=(0, 0.012080), xytext=(0, 0.0135),
                 ha='center', va='bottom', fontsize=9, fontweight="bold",
                 arrowprops=dict(arrowstyle="->", color="#1f77b4", lw=1.5))
-                
+
     ax.set_ylabel("Doubly Robust Policy Return (DR)")
-    ax.set_title("Cold-Start Performance on 205 Zero-Degree Users (OBD-Men)")
+    ax.set_title("Cold-Start Performance on 243 Zero-Degree Segments (OBD-Men)")
     ax.set_ylim(0, 0.016)
     
     plt.savefig(FIG_DIR / "fig3_cold_start_comparison.pdf")
@@ -152,7 +151,7 @@ def plot_fig4_tgn():
     fig, ax = plt.subplots(figsize=(7, 4.2))
     
     datasets = ["OBD-All", "OBD-Men", "OBD-Women", "Criteo"]
-    lightgcn = [0.008404, 0.010317, 0.010086, 0.002726]
+    lightgcn = [0.008404, 0.010301, 0.010086, 0.002726]
     tgn =      [0.007354, 0.010181, 0.009098, 0.002712]
     
     x = np.arange(len(datasets))
@@ -179,8 +178,8 @@ def plot_fig5_lagrangian():
     fig, ax1 = plt.subplots(figsize=(7, 4.2))
     
     lambdas = [0.05, 0.10, 0.20]
-    obd_all_dr = [0.008501, 0.008404, 0.008120]
-    obd_all_cv = [2.07, 1.18, 2.59]
+    obd_all_dr = [0.008501, 0.007924, 0.006632]
+    obd_all_cv = [1.85, 11.28, 12.99]
     
     color = '#1f77b4'
     ax1.set_xlabel(r"Lagrangian Multiplier $\lambda_{\mathrm{CFR}}$ (Counterfactual Variance Bound)", fontweight="bold")
