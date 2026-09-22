@@ -71,7 +71,13 @@ if __name__ == "__main__":
         "Diff-GNN-Bandit (Unguided)": {"dr": 0.00412},
         "Diff-GNN-Bandit (Tweedie CATE)": {"dr": 0.00414},
     }
+    kuairec_claims = {
+        "GNN-Bandit (BCQ)": {"dr": 0.1452},
+        "Diff-GNN-Bandit (Unguided)": {"dr": 0.0692},
+        "Diff-GNN-Bandit (Tweedie CATE)": {"dr": 0.0691},
+    }
     
     verify_dataset("kuairand", kuairand_claims)
     verify_dataset("obd-all", obd_all_claims)
+    verify_dataset("kuairec", kuairec_claims)
     print("\nALL DIFFUSION BENCHMARK VERIFICATIONS PASSED (0 FAILURES).")
