@@ -63,7 +63,8 @@ To simultaneously resolve distributional shift, cold-start relational sparsity, 
     \item \textbf{Batch-Constrained Safety Filtering}: We implement a state-conditioned action plausibility filter $\hat{\mathcal{A}}(s)$ driven by a behavioral cloning network $\hat{P}_\beta(a|s)$. The agent is mathematically restricted to actions that have demonstrated historical logging support, strictly eliminating OOD counterfactual extrapolation errors.
     \item \textbf{Lagrangian Duality and Budget Pacing}: We formulate offline policy constraints and real-world marketing budget limitations as a constrained optimization problem, demonstrating how the BCQ action filter and counterfactual variance bounds emerge naturally from Lagrangian relaxation.
     \item \textbf{Risk-Averse Quantile Optimization (CVaR)}: We employ distributional quantile regression to estimate the Conditional Value-at-Risk ($\text{CVaR}_\alpha$) of candidate interventions, allowing decision-makers to tune the policy along a formal safety-performance Pareto frontier.
-    \item \textbf{Doubly Robust Off-Policy Validation}: Policy performance is verified via Doubly Robust (DR) estimation, guaranteeing consistent and asymptotic variance-reduced evaluation without live environmental exposure.
+    \item \textbf{Generative Diffusion Policy \& Tweedie CATE Guidance (Diff-GNN-Bandit)}: To scale to continuous latent action representations and large catalogs, we formulate action generation as a score-based diffusion process over graph embeddings. We derive an analytical closed-form Tweedie CATE guidance gradient that steers policy trajectories toward high-uplift decisions at inference time in $<3\ \mu\text{s}$ without neural backpropagation or model retraining.
+    \item \textbf{Doubly Robust Off-Policy Validation}: Policy performance is verified via Doubly Robust (DR) estimation across six real-world datasets, guaranteeing consistent and asymptotic variance-reduced evaluation without live environmental exposure.
 \end{itemize}
 
 \section{Problem Formulation \& Theoretical Foundations}
@@ -106,14 +107,14 @@ Since $g(\lambda) = \frac{1}{L+1} \sum_{k=0}^L (1 - \lambda)^k$ is strictly mono
 
 \begin{lemma}[Graph Convolutional Contraction of Representation IPM]
 \label{lem:ipm_contraction}
-Let $\mathcal{P}_X$ and $\mathcal{Q}_X$ denote the feature distributions of treated and control populations over the graph. Let $\Phi^{(l)}(X) = \tilde{\mathbf{A}}^l X$ be the node representation after $l$ layers of normalized graph convolution. Under the family of Lipschitz continuous test functions $\mathcal{F} = \{f : \|f\|_{\mathrm{Lip}} \le 1\}$, the Integral Probability Metric (IPM) contracts exponentially:
+Let $\mathcal{P}_X$ and $\mathcal{Q}_X$ denote the feature distributions of treated and control populations over bipartite graph $\mathcal{G} = (\mathcal{U} \cup \mathcal{I}, \mathcal{E})$. Let $\Phi(X) = \mathbf{U} g(\mathbf{\Lambda}) \mathbf{U}^\top X$ denote the representation obtained via the layer-averaged LightGCN operator $g(\mathbf{\Lambda}) = \frac{1}{L+1} \sum_{k=0}^L (\mathbf{I} - \mathbf{\Lambda})^k$. Under the family of 1-Lipschitz test functions $\mathcal{F} = \{f : \|f\|_{\mathrm{Lip}} \le 1\}$, the Integral Probability Metric (IPM) contracts geometrically on the non-trivial spectral subspace:
 \begin{equation}
-\mathrm{IPM}_{\mathcal{F}}(\mathcal{P}_{\Phi}^{(l)}, \mathcal{Q}_{\Phi}^{(l)}) \le (1 - \lambda_2(\mathbf{L}_{\mathrm{sym}}))^l \cdot \mathrm{IPM}_{\mathcal{F}}(\mathcal{P}_X, \mathcal{Q}_X)
+\mathrm{IPM}_{\mathcal{F}}(\mathcal{P}_{\Phi}, \mathcal{Q}_{\Phi}) \le (1 - \lambda_2(\mathbf{L}_{\mathrm{sym}}))^L \cdot \mathrm{IPM}_{\mathcal{F}}(\mathcal{P}_X, \mathcal{Q}_X)
 \end{equation}
-where $\lambda_2(\mathbf{L}_{\mathrm{sym}}) > 0$ is the spectral gap (Fiedler eigenvalue) of the normalized graph Laplacian.
+where $\lambda_2(\mathbf{L}_{\mathrm{sym}}) > 0$ is the spectral gap (Fiedler eigenvalue) of the normalized graph Laplacian. Furthermore, for odd layer depth $L$ (such as $L=3$), the bipartite boundary alternating mode at $\lambda_N = 2$ is identically annihilated ($g(2) = 0$).
 \end{lemma}
 \begin{proof}
-By the Kantorovich-Rubinstein duality theorem, $\mathrm{IPM}_{\mathcal{F}}(\mathcal{P}, \mathcal{Q}) = \mathcal{W}_1(\mathcal{P}, \mathcal{Q})$, the 1-Wasserstein distance. Symmetrically normalized graph convolution corresponds to a linear operator with operator norm bounded by the second largest singular value $\sigma_2(\tilde{\mathbf{A}}) = 1 - \lambda_2(\mathbf{L}_{\mathrm{sym}})$. For any 1-Lipschitz function $f$, $\|f \circ \tilde{\mathbf{A}}^l\|_{\mathrm{Lip}} \le \|\tilde{\mathbf{A}}\|_2^l \|f\|_{\mathrm{Lip}} \le (1 - \lambda_2)^l$. Taking the supremum over $\mathcal{F}$ yields the geometric contraction bound.
+By the Kantorovich-Rubinstein duality theorem, $\mathrm{IPM}_{\mathcal{F}}(\mathcal{P}, \mathcal{Q}) = \mathcal{W}_1(\mathcal{P}, \mathcal{Q})$. On a bipartite graph, the normalized adjacency spectrum is symmetric: $\mu_1 = 1$ and $\mu_N = -1$ (corresponding to Laplacian eigenvalues $\lambda_1 = 0$ and $\lambda_N = 2$). The polynomial spectral filter satisfies $g(\lambda) = \frac{1}{L+1}\sum_{k=0}^L (1 - \lambda)^k$. For odd $L$, $g(2) = \frac{1}{L+1}\sum_{k=0}^L (-1)^k = 0$, completely suppressing bipartite alternating noise. On the non-trivial homophilic spectrum $\lambda \in [\lambda_2, 2 - \lambda_2]$, the operator norm is bounded by the spectral radius $\rho \le 1 - \lambda_2(\mathbf{L}_{\mathrm{sym}})$. For any $f \in \mathcal{F}$, $\|f \circ g(\tilde{\mathbf{A}})\|_{\mathrm{Lip}} \le (1 - \lambda_2)^L \|f\|_{\mathrm{Lip}}$. Taking the supremum over $\mathcal{F}$ yields the geometric contraction bound.
 \end{proof}
 
 \begin{theorem}[Finite-Sample PEHE Generalization Error Bound]
@@ -132,12 +133,12 @@ Decomposing the Precision in Estimating Heterogeneous Effects (PEHE) into factua
 \label{thm:bcq_subopt}
 Let $\pi^*$ denote the optimal unconstrained counterfactual policy, and let $\hat{\pi}_{\mathrm{BCQ}}$ be the policy learned by GNN-Bandit under batch constraint threshold $\tau$. The counterfactual policy value suboptimality is bounded by:
 \begin{equation}
-V(\pi^*) - V(\hat{\pi}_{\mathrm{BCQ}}) \le \frac{2}{1 - \gamma} \epsilon_{\mathrm{extrap}}(\tau) + \mathcal{O}\left( \sqrt{\frac{d_{\mathcal{H}} \log(N)}{N}} \right) + (1 - \beta) \sqrt{\mathrm{PEHE}(\hat{\tau})}
+V(\pi^*) - V(\hat{\pi}_{\mathrm{BCQ}}) \le 2 \epsilon_{\mathrm{extrap}}(\tau) + \mathcal{O}\left( \sqrt{\frac{d_{\mathcal{H}} \log(N)}{N}} \right) + (1 - \beta) \sqrt{\mathrm{PEHE}(\hat{\tau})}
 \end{equation}
 where $\epsilon_{\mathrm{extrap}}(\tau) = \max_{s} \max_{a \notin \hat{\mathcal{A}}(s)} [Q^*(s, a) - \max_{a' \in \hat{\mathcal{A}}(s)} Q^*(s, a')]_+$ is the out-of-support truncation loss, and $d_{\mathcal{H}}$ is the pseudo-dimension of the Q-network.
 \end{theorem}
 \begin{proof}
-The policy suboptimality decomposes into out-of-support action truncation error $\epsilon_{\mathrm{extrap}}(\tau)$, standard sample complexity error bounded by empirical VC/Rademacher dimensions $\mathcal{O}(\sqrt{d_{\mathcal{H}} \log(N)/N})$, and CATE reward augmentation error scaled by $(1 - \beta)\sqrt{\mathrm{PEHE}(\hat{\tau})}$. When logging support is dense on the optimal action, $\epsilon_{\mathrm{extrap}}(\tau) = 0$, guaranteeing near-optimal generalization.
+The policy suboptimality decomposes into out-of-support action truncation error $\epsilon_{\mathrm{extrap}}(\tau)$, sample complexity bounded by empirical VC/Rademacher dimensions $\mathcal{O}(\sqrt{d_{\mathcal{H}} \log(N)/N})$, and CATE reward augmentation error scaled by $(1 - \beta)\sqrt{\mathrm{PEHE}(\hat{\tau})}$. In the single-step contextual bandit setting ($\gamma = 0$), the standard sequential error amplification factor $\frac{2}{1 - \gamma}$ reduces identically to 2. When logging support is dense on the optimal action, $\epsilon_{\mathrm{extrap}}(\tau) = 0$, guaranteeing near-optimal generalization.
 \end{proof}
 
 
@@ -205,7 +206,7 @@ p_k(\hat{\mathbf{a}}_0) = \frac{\exp\left( \tilde{\mathbf{e}}_k^\top \hat{\mathb
 \end{equation}
 Given estimated treatment effects $\boldsymbol{\tau} = [\tau_1, \dots, \tau_K]^\top = \hat{\tau}_{\mathrm{CATE}}(\mathbf{s}, \cdot)$, the expected causal uplift is $\mathbb{E}_{a \sim \mathbf{p}}[\tau(\mathbf{s}, a)] = \mathbf{p}^\top \boldsymbol{\tau}$. Differentiating this expected return with respect to continuous latent action $\hat{\mathbf{a}}_0$ yields the closed-form analytical gradient:
 \begin{equation}
-\mathbf{g}(\hat{\mathbf{a}}_0) = \nabla_{\hat{\mathbf{a}}_0} \sum_{k=1}^K p_k \tau_k = \frac{1}{T_{\mathrm{temp}}} \sum_{k=1}^K p_k (\tau_k - \mathbf{p}^\top \boldsymbol{\tau}) \tilde{\mathbf{e}}_k = \frac{1}{T_{\mathrm{temp}}} \tilde{\mathbf{E}}^\top \Big( \mathbf{p} \odot (\boldsymbol{\tau} - \mathbf{p}^\top \boldsymbol{\tau}) \Big)
+\mathbf{g}(\hat{\mathbf{a}}_0) = \nabla_{\hat{\mathbf{a}}_0} \sum_{k=1}^K p_k \tau_k = \frac{1}{T_{\mathrm{temp}}} \sum_{k=1}^K p_k (\tau_k - \mathbf{p}^\top \boldsymbol{\tau}) \tilde{\mathbf{e}}_k = \frac{1}{T_{\mathrm{temp}}} \tilde{\mathbf{E}}^\top \Big( \mathbf{p} \odot (\boldsymbol{\tau} - (\mathbf{p}^\top \boldsymbol{\tau})\mathbf{1}) \Big)
 \end{equation}
 Crucially, $\mathbf{g}(\hat{\mathbf{a}}_0)$ evaluates in $\mathcal{O}(K \cdot d)$ operations without requiring backpropagation through neural architectures. During reverse DDIM sampling \cite{song2020denoising}, we update the estimate with scaled guidance:
 \begin{equation}
